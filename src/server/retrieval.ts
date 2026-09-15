@@ -1,4 +1,4 @@
-import { KnowledgeDocument } from "./knowledge.ts";
+import type { KnowledgeDocument } from "./knowledge.ts";
 
 export interface DocumentChunk {
   id: string;

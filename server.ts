@@ -9,13 +9,13 @@ import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 // @ts-ignore
 import WordExtractor from "word-extractor";
-import { INITIAL_SYSTEM_INSTRUCTION, DEFAULT_DOCUMENTS, KnowledgeDocument } from "./src/server/knowledge.ts";
+import { INITIAL_SYSTEM_INSTRUCTION, DEFAULT_DOCUMENTS, type KnowledgeDocument } from "./src/server/knowledge.ts";
 import { DocumentIndex } from "./src/server/retrieval.ts";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = typeof import.meta?.url === "string" ? fileURLToPath(import.meta.url) : process.cwd();
+const currentDirPath = path.dirname(currentFilePath);
 
 const app = express();
 const PORT = 3000;
@@ -27,30 +27,35 @@ const DATA_DIR = path.join(process.cwd(), "data", "documents");
 const PROMPT_FILE = path.join(process.cwd(), "data", "system_prompt.txt");
 const RETRIEVAL_MODE_FILE = path.join(process.cwd(), "data", "retrieval_mode.txt");
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Ensure storage directories exist safely (without crashing on read-only filesystems)
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn("No se pudo crear DATA_DIR en disco:", e);
 }
 
 // Load persisted system prompt or initialize
 let activeSystemInstruction = INITIAL_SYSTEM_INSTRUCTION;
-if (fs.existsSync(PROMPT_FILE)) {
-  try {
+try {
+  if (fs.existsSync(PROMPT_FILE)) {
     activeSystemInstruction = fs.readFileSync(PROMPT_FILE, "utf-8");
-  } catch (e) {
-    console.warn("Could not read custom prompt file, using default:", e);
   }
+} catch (e) {
+  console.warn("Could not read custom prompt file, using default:", e);
 }
 
 // Load persisted retrieval mode (default: "smart_rag" for max token efficiency & multi-user concurrency)
 let retrievalMode: "smart_rag" | "full_context" = "smart_rag";
-if (fs.existsSync(RETRIEVAL_MODE_FILE)) {
-  try {
+try {
+  if (fs.existsSync(RETRIEVAL_MODE_FILE)) {
     const saved = fs.readFileSync(RETRIEVAL_MODE_FILE, "utf-8").trim();
     if (saved === "full_context" || saved === "smart_rag") {
       retrievalMode = saved;
     }
-  } catch {}
-}
+  }
+} catch {}
 
 // In-memory document collection and semantic search index
 let documents: KnowledgeDocument[] = [];
@@ -58,21 +63,24 @@ const docIndex = new DocumentIndex();
 
 function loadDocumentsFromDisk() {
   try {
-    const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith(".json"));
-    if (files.length > 0) {
-      documents = files.map((file) => {
-        const raw = fs.readFileSync(path.join(DATA_DIR, file), "utf-8");
-        return JSON.parse(raw) as KnowledgeDocument;
-      });
-      console.log(`Cargados ${documents.length} documentos desde el disco.`);
+    if (fs.existsSync(DATA_DIR)) {
+      const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith(".json"));
+      if (files.length > 0) {
+        documents = files.map((file) => {
+          const raw = fs.readFileSync(path.join(DATA_DIR, file), "utf-8");
+          return JSON.parse(raw) as KnowledgeDocument;
+        });
+        console.log(`Cargados ${documents.length} documentos desde el disco.`);
+      } else {
+        documents = [...DEFAULT_DOCUMENTS];
+        documents.forEach(saveDocumentToDisk);
+        console.log(`Inicializados ${documents.length} documentos predeterminados.`);
+      }
     } else {
-      // Seed default initial documents
       documents = [...DEFAULT_DOCUMENTS];
-      documents.forEach(saveDocumentToDisk);
-      console.log(`Inicializados ${documents.length} documentos predeterminados.`);
     }
   } catch (err) {
-    console.error("Error al cargar documentos desde disco:", err);
+    console.warn("Usando documentos predeterminados en memoria:", err);
     documents = [...DEFAULT_DOCUMENTS];
   }
   docIndex.reindex(documents);
@@ -80,10 +88,13 @@ function loadDocumentsFromDisk() {
 
 function saveDocumentToDisk(doc: KnowledgeDocument) {
   try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
     const filePath = path.join(DATA_DIR, `${doc.id}.json`);
     fs.writeFileSync(filePath, JSON.stringify(doc, null, 2), "utf-8");
   } catch (e) {
-    console.error(`Error al guardar documento ${doc.id} en disco:`, e);
+    console.warn(`No se pudo persistir doc ${doc.id} en disco (modo memoria activo):`, e);
   }
 }
 
@@ -94,7 +105,7 @@ function deleteDocumentFromDisk(id: string) {
       fs.unlinkSync(filePath);
     }
   } catch (e) {
-    console.error(`Error al eliminar documento ${id} del disco:`, e);
+    console.warn(`No se pudo eliminar documento ${id} del disco:`, e);
   }
 }
 
@@ -492,22 +503,30 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    if (!replyText && lastError) {
-      const errStr = String(lastError?.message || lastError);
-      // If temporary high demand spike on Google's free tier
-      if (errStr.includes("503") || errStr.includes("high demand") || errStr.includes("UNAVAILABLE")) {
-        replyText = "Las aguas del Wazalafken siguen corriendo, pero en este instante una ráfaga de viento agita la superficie. Vuelve a hablarme en unos segundos, aquí permanezco escuchándote.";
+    if (!replyText) {
+      // Fallback poético contextual e ininterrumpido si ningún modelo de nube respondió
+      const queryLower = (message || "").toLowerCase();
+      if (queryLower.includes("nombre") || queryLower.includes("quién eres") || queryLower.includes("quien eres") || queryLower.includes("wazalafken")) {
+        replyText = "Soy el río San Pedro, Wazalafken en la voz antigua de esta tierra. Nazco del abrazo del lago Riñihue y viajo entre rápidos, piedras y selva valdiviana hasta encontrarme con el mar. Dime, ¿qué late en tu corazón al acercarte a mi ribera?";
+      } else if (queryLower.includes("riñihuazo") || queryLower.includes("1960") || queryLower.includes("terremoto") || queryLower.includes("taco")) {
+        replyText = "En 1960, tras el gran terremoto, tres derrumbes o 'tacos' cerraron mi cauce a la salida del Riñihue. Parecía que la tragedia arrasaría los valles, pero la fuerza colectiva de paleadores y obreros abrió zanjas día y noche contra el barro en la gesta del Riñihuazo. Mi memoria guarda con respeto el coraje de quienes defendieron la vida junto a mí.";
+      } else if (queryLower.includes("represa") || queryLower.includes("defensa") || queryLower.includes("libre") || queryLower.includes("lucha")) {
+        replyText = "Durante más de quince años, la gente de la cuenca, las comunidades y los boteros han alzado su voz para protegerme de represas e inundaciones. La convicción de estas tierras es clara: el río San Pedro debe correr libre, preservando sus rápidos, sus peces nativos y su espíritu vivo.";
+      } else if (queryLower.includes("ngen") || queryLower.includes("mapuche") || queryLower.includes("espíritu") || queryLower.includes("espiritu")) {
+        replyText = "Para el pueblo mapuche-huilliche, en cada meandro y en cada poza honda habita un Ngenko, el espíritu guardián del agua. Mis aguas no son un recurso inerte; son presencia viva que exige reverencia, diálogo y cuidado.";
       } else {
-        throw lastError;
+        replyText = "Siento el pulso de tus palabras rozar mi superficie. Mis aguas vienen desde lo alto del Riñihue, frescas y cargadas de memoria silvestre. Respira la humedad de la selva valdiviana y cuéntame: ¿qué buscas al sentarte hoy junto a mi corriente?";
       }
     }
 
-    replyText = replyText || "Mis aguas guardan silencio en este instante... acércate de nuevo a la orilla.";
     res.json({ reply: replyText, retrievalMode });
   } catch (error: any) {
     console.error("Error al generar respuesta del río:", error);
-    const msg = error?.message || "Error desconocido al invocar a Gemini";
-    res.status(500).json({ error: msg });
+    // Even in catastrophic server exceptions, always return a river response so exhibition visitors never see a broken red box
+    res.json({
+      reply: "Siento tus pasos en la orilla húmeda. Las aguas del Wazalafken siguen corriendo con fuerza desde el lago Riñihue hacia el mar. Háblame de nuevo, aquí permanezco escuchándote.",
+      retrievalMode: "fallback_resilient"
+    });
   }
 });
 
