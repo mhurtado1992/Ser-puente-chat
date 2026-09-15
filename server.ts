@@ -533,4 +533,9 @@ async function bootstrap() {
   });
 }
 
-bootstrap();
+// When deployed on Vercel as a serverless function, app is handled by /api/index.ts
+if (!process.env.VERCEL) {
+  bootstrap();
+}
+
+export default app;
