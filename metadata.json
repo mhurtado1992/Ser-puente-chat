@@ -1,0 +1,6 @@
+{
+  "name": "Ser Puente",
+  "description": "Exposición interactiva sobre las voces del río San Pedro impulsada por Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
