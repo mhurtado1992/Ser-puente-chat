@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { INITIAL_SYSTEM_INSTRUCTION, DEFAULT_DOCUMENTS } from "../src/server/knowledge.ts";
+import { INITIAL_SYSTEM_INSTRUCTION, DEFAULT_DOCUMENTS } from "./_knowledge.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -20,9 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })),
     totalPagesApprox: totalPages,
     totalWordsApprox: totalWords,
-    hasApiKey: Boolean(process.env.GEMINI_API_KEY),
+    hasApiKey: Boolean(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
     retrievalMode: "smart_rag",
     totalChunks: DEFAULT_DOCUMENTS.length,
     estimatedTokensPerQuery: 2500,
   });
 }
+

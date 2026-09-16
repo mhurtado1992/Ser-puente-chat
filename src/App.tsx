@@ -5,6 +5,7 @@ import { ExhibitionHeader } from "./components/ExhibitionHeader";
 import { MessageItem } from "./components/MessageItem";
 import { CuratorModal } from "./components/CuratorModal";
 import { WaterVisualizer } from "./components/WaterVisualizer";
+import { queryRiver } from "./utils/riverEngine";
 
 const SUGGESTED_QUESTIONS = [
   "¿Cómo viviste la hazaña solidaria del Riñihuazo en 1960?",
