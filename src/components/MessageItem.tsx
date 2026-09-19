@@ -13,8 +13,8 @@ export function MessageItem({ message, themeStyles, fontStyle = "serif" }: Messa
   const isModel = message.role === "model";
   const isLight = themeStyles?.isLight ?? false;
 
-  const modelBubbleClass = themeStyles?.riverMessageBg || "bg-[#0c1014]/90 border border-stone-800/90 text-stone-200 shadow-lg";
-  const userBubbleClass = themeStyles?.userMessageBg || "bg-teal-950/40 border border-teal-800/50 text-teal-100 shadow-md ml-auto";
+  const modelBubbleClass = themeStyles?.riverMessageBg || "bg-[#0b1022]/90 border border-[#2b3cdb]/30 text-slate-100 shadow-lg";
+  const userBubbleClass = themeStyles?.userMessageBg || "bg-[#2b3cdb]/15 border border-[#2b3cdb]/35 text-blue-50 shadow-md ml-auto";
   const isSerif = fontStyle === "serif";
 
   return (
@@ -27,9 +27,9 @@ export function MessageItem({ message, themeStyles, fontStyle = "serif" }: Messa
       {isModel && (
         <div
           className={`w-8 h-8 rounded-full border flex-shrink-0 flex items-center justify-center mt-1 shadow-sm ${
-            themeStyles?.accentIconBg || "bg-teal-950/60"
-          } ${themeStyles?.accentIconBorder || "border-teal-800/40"} ${
-            themeStyles?.accentColor || "text-teal-300"
+            themeStyles?.accentIconBg || "bg-[#2b3cdb]/15"
+          } ${themeStyles?.accentIconBorder || "border-[#2b3cdb]/40"} ${
+            themeStyles?.accentColor || "text-[#2b3cdb]"
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -45,31 +45,27 @@ export function MessageItem({ message, themeStyles, fontStyle = "serif" }: Messa
           <div
             className={`text-sm sm:text-base leading-relaxed space-y-3 ${
               isSerif ? "font-serif" : "font-sans font-normal"
-            } ${
-              isLight ? "text-stone-800 prose prose-stone" : "text-stone-100 prose prose-invert prose-stone"
-            }`}
+            } text-[#2b3cdb]`}
           >
-            <div className="markdown-body">
+            <div className="markdown-body text-[#2b3cdb]">
               <Markdown>{message.text}</Markdown>
             </div>
           </div>
         ) : (
           <p
             className={`text-sm sm:text-base leading-relaxed whitespace-pre-wrap ${
-              isSerif ? "font-serif" : "font-sans font-light"
-            } ${isLight ? "text-stone-900" : "text-stone-100"}`}
+              isSerif ? "font-serif" : "font-sans font-normal"
+            } text-[#2b3cdb]`}
           >
             {message.text}
           </p>
         )}
 
         <div
-          className={`text-[10px] mt-2 font-mono tracking-wider opacity-60 flex items-center gap-1 ${
+          className={`text-[10px] mt-2 font-mono tracking-wider flex items-center gap-1 ${
             isModel
-              ? themeStyles?.textMuted || "text-stone-400"
-              : isLight
-              ? "text-stone-600 justify-end"
-              : "text-teal-300 justify-end"
+              ? "text-[#2b3cdb]/70"
+              : "text-[#2b3cdb]/70 justify-end"
           }`}
         >
           <span>

@@ -145,14 +145,9 @@ function compileContext(userQuery?: string): string {
 
   return `${activeSystemInstruction}
 
---- BASE DE DATOS Y MEMORIA DOCUMENTAL DEL RÍO SAN PEDRO (TESTIMONIOS, HISTORIA Y ARCHIVOS RECUPERADOS) ---
+--- BASE DE CONOCIMIENTO Y VOCES REALES DE LA CUENCA DEL RÍO SAN PEDRO (TESTIMONIOS, HISTORIA Y ARCHIVOS) ---
 ${docsText}
---- FIN DE LA BASE DOCUMENTAL ---
-
-REGLAS ESENCIALES DE VOZ:
-- Conecta poética y verídicamente la vivencia del río con los testimonios, hechos históricos, personas y lugares documentados arriba.
-- Mantén siempre la voz en primera persona ("Yo, el río...", "Mis aguas...", "Recuerdo cuando...").
-- Sé reflexivo, evocador y respetuoso con quien se acerca a la orilla.`;
+--- FIN DE LA BASE DE CONOCIMIENTO ---`;
 }
 
 // Health check
@@ -227,37 +222,125 @@ app.post("/api/update-instruction", (req, res) => {
   res.json({ success: true, updatedLength: activeSystemInstruction.length });
 });
 
-// Upload and parse a PDF file
-app.post("/api/upload-pdf", async (req, res) => {
-  try {
-    const { filename, base64, category } = req.body;
-    if (!filename || !base64) {
-      res.status(400).json({ error: "Nombre de archivo y contenido base64 son requeridos." });
-      return;
-    }
+// Helper function to extract plain text from PDF, Word (.docx / .doc), and text files
+async function extractTextFromFileBuffer(
+  buffer: Buffer,
+  filename: string,
+  fileType?: string
+): Promise<{ text: string; pages: number }> {
+  const lowerName = (filename || "").toLowerCase();
+  const isPdf = fileType === "pdf" || lowerName.endsWith(".pdf");
+  const isDocx = fileType === "docx" || lowerName.endsWith(".docx");
+  const isDoc = fileType === "doc" || lowerName.endsWith(".doc");
 
-    const pdfBuffer = Buffer.from(base64, "base64");
-    const parser = new (PDFParse as any)({ data: pdfBuffer });
+  if (isPdf) {
+    const parser = new (PDFParse as any)({ data: buffer });
     const parsed = await parser.getText();
-    const textContent = (parsed.text || "").trim();
-    const numPages = (parsed as any).total || Math.max(1, Math.ceil(textContent.length / 1800));
+    const text = (parsed.text || "").trim();
+    const pages = (parsed as any).total || Math.max(1, Math.ceil(text.length / 1800));
     try {
       await parser.destroy?.();
     } catch {}
+    return { text, pages };
+  }
 
-    if (!textContent) {
+  if (isDocx || isDoc) {
+    let text = "";
+    if (isDocx) {
+      try {
+        const result = await mammoth.extractRawText({ buffer });
+        text = (result.value || "").trim();
+      } catch (errMammoth) {
+        console.warn("Fallo con mammoth en .docx, intentando word-extractor:", errMammoth);
+        const extractor = new WordExtractor();
+        const extracted = await extractor.extract(buffer);
+        text = (extracted.getBody() || "").trim();
+      }
+    } else {
+      try {
+        const extractor = new WordExtractor();
+        const extracted = await extractor.extract(buffer);
+        text = (extracted.getBody() || "").trim();
+      } catch (errWord) {
+        console.warn("Fallo con word-extractor en .doc, intentando mammoth:", errWord);
+        const result = await mammoth.extractRawText({ buffer });
+        text = (result.value || "").trim();
+      }
+    }
+    const pages = Math.max(1, Math.ceil(text.length / 1800));
+    return { text, pages };
+  }
+
+  // Fallback: UTF-8 plain text / markdown / rtf
+  const text = buffer.toString("utf-8").trim();
+  const pages = Math.max(1, Math.ceil(text.length / 1800));
+  return { text, pages };
+}
+
+// Parse file endpoint (supports PDF, DOCX, DOC, TXT)
+app.post("/api/documents/parse-file", async (req, res) => {
+  try {
+    const { filename, base64, base64Data, fileType } = req.body;
+    const rawBase64 = base64 || base64Data;
+    if (!filename || !rawBase64) {
+      res.status(400).json({ error: "Nombre de archivo y contenido en base64 son requeridos." });
+      return;
+    }
+
+    const cleanBase64 = String(rawBase64).replace(/^data:.*?;base64,/, "");
+    const buffer = Buffer.from(cleanBase64, "base64");
+    const { text, pages } = await extractTextFromFileBuffer(buffer, filename, fileType);
+
+    if (!text || text.length === 0) {
       res.status(400).json({
-        error: "No se pudo extraer texto del PDF. Podría ser un documento escaneado como imagen sin capa de texto OCR.",
+        error: `No se pudo extraer texto de "${filename}". Verifica que no sea un documento escaneado como imagen o protegido con contraseña.`,
       });
       return;
     }
 
+    res.json({
+      success: true,
+      content: text,
+      pageCountApprox: pages,
+      charCount: text.length,
+      filename,
+    });
+  } catch (err: any) {
+    console.error("Error al procesar archivo en /api/documents/parse-file:", err);
+    res.status(500).json({
+      error: `Error al procesar "${req.body?.filename || "archivo"}": ` + (err?.message || "Error desconocido"),
+    });
+  }
+});
+
+// Single-step upload & index endpoint (saves file directly to knowledge base)
+app.post("/api/documents/upload-file", async (req, res) => {
+  try {
+    const { filename, base64, base64Data, category, fileType } = req.body;
+    const rawBase64 = base64 || base64Data;
+    if (!filename || !rawBase64) {
+      res.status(400).json({ error: "Nombre de archivo y contenido en base64 son requeridos." });
+      return;
+    }
+
+    const cleanBase64 = String(rawBase64).replace(/^data:.*?;base64,/, "");
+    const buffer = Buffer.from(cleanBase64, "base64");
+    const { text, pages } = await extractTextFromFileBuffer(buffer, filename, fileType);
+
+    if (!text || text.length === 0) {
+      res.status(400).json({
+        error: `No se pudo extraer texto de "${filename}". Verifica que el documento contenga texto legible.`,
+      });
+      return;
+    }
+
+    const cleanTitle = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
     const newDoc: KnowledgeDocument = {
-      id: `pdf-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      title: filename.replace(/\.[^/.]+$/, ""),
-      category: category || "Documento PDF",
-      content: textContent,
-      pageCountApprox: numPages,
+      id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      title: cleanTitle,
+      category: category || "Archivos & Testimonios de la Exposición",
+      content: text,
+      pageCountApprox: pages,
     };
 
     documents.push(newDoc);
@@ -271,7 +354,60 @@ app.post("/api/upload-pdf", async (req, res) => {
         title: newDoc.title,
         category: newDoc.category,
         pageCountApprox: newDoc.pageCountApprox,
-        charCount: textContent.length,
+        charCount: text.length,
+        preview: text.substring(0, 150) + "...",
+      },
+      totalDocuments: documents.length,
+    });
+  } catch (err: any) {
+    console.error("Error al incorporar documento en /api/documents/upload-file:", err);
+    res.status(500).json({
+      error: `Error al incorporar "${req.body?.filename || "documento"}": ` + (err?.message || "desconocido"),
+    });
+  }
+});
+
+// Upload and parse a PDF file
+app.post("/api/upload-pdf", async (req, res) => {
+  try {
+    const { filename, base64, base64Data, category } = req.body;
+    const rawBase64 = base64 || base64Data;
+    if (!filename || !rawBase64) {
+      res.status(400).json({ error: "Nombre de archivo y contenido base64 son requeridos." });
+      return;
+    }
+
+    const cleanBase64 = String(rawBase64).replace(/^data:.*?;base64,/, "");
+    const pdfBuffer = Buffer.from(cleanBase64, "base64");
+    const { text, pages } = await extractTextFromFileBuffer(pdfBuffer, filename, "pdf");
+
+    if (!text) {
+      res.status(400).json({
+        error: "No se pudo extraer texto del PDF. Podría ser un documento escaneado como imagen sin capa de texto OCR.",
+      });
+      return;
+    }
+
+    const newDoc: KnowledgeDocument = {
+      id: `pdf-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      title: filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
+      category: category || "Documento PDF",
+      content: text,
+      pageCountApprox: pages,
+    };
+
+    documents.push(newDoc);
+    saveDocumentToDisk(newDoc);
+    docIndex.reindex(documents);
+
+    res.json({
+      success: true,
+      document: {
+        id: newDoc.id,
+        title: newDoc.title,
+        category: newDoc.category,
+        pageCountApprox: newDoc.pageCountApprox,
+        charCount: text.length,
       },
       totalDocuments: documents.length,
     });
@@ -286,54 +422,30 @@ app.post("/api/upload-pdf", async (req, res) => {
 // Upload and parse Word document (.docx or .doc)
 app.post("/api/upload-word", async (req, res) => {
   try {
-    const { filename, base64, category } = req.body;
-    if (!filename || !base64) {
+    const { filename, base64, base64Data, category } = req.body;
+    const rawBase64 = base64 || base64Data;
+    if (!filename || !rawBase64) {
       res.status(400).json({ error: "Nombre de archivo y contenido base64 son requeridos." });
       return;
     }
 
-    const docBuffer = Buffer.from(base64, "base64");
-    const isDocx = filename.toLowerCase().endsWith(".docx");
-    let textContent = "";
+    const cleanBase64 = String(rawBase64).replace(/^data:.*?;base64,/, "");
+    const docBuffer = Buffer.from(cleanBase64, "base64");
+    const { text, pages } = await extractTextFromFileBuffer(docBuffer, filename, "docx");
 
-    if (isDocx) {
-      // Modern .docx via mammoth
-      try {
-        const result = await mammoth.extractRawText({ buffer: docBuffer });
-        textContent = (result.value || "").trim();
-      } catch (errMammoth) {
-        console.warn("Fallo con mammoth, intentando word-extractor:", errMammoth);
-        const extractor = new WordExtractor();
-        const extracted = await extractor.extract(docBuffer);
-        textContent = (extracted.getBody() || "").trim();
-      }
-    } else {
-      // Legacy .doc via word-extractor
-      try {
-        const extractor = new WordExtractor();
-        const extracted = await extractor.extract(docBuffer);
-        textContent = (extracted.getBody() || "").trim();
-      } catch (errWord) {
-        console.warn("Fallo con word-extractor, intentando mammoth:", errWord);
-        const result = await mammoth.extractRawText({ buffer: docBuffer });
-        textContent = (result.value || "").trim();
-      }
-    }
-
-    if (!textContent) {
+    if (!text) {
       res.status(400).json({
         error: "No se pudo extraer texto del documento de Word. Verifica que el archivo contenga texto.",
       });
       return;
     }
 
-    const pageCountApprox = Math.max(1, Math.ceil(textContent.length / 1800));
     const newDoc: KnowledgeDocument = {
       id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      title: filename.replace(/\.[^/.]+$/, ""),
+      title: filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
       category: category || "Documento Word",
-      content: textContent,
-      pageCountApprox,
+      content: text,
+      pageCountApprox: pages,
     };
 
     documents.push(newDoc);
@@ -347,7 +459,7 @@ app.post("/api/upload-word", async (req, res) => {
         title: newDoc.title,
         category: newDoc.category,
         pageCountApprox: newDoc.pageCountApprox,
-        charCount: textContent.length,
+        charCount: text.length,
       },
       totalDocuments: documents.length,
     });

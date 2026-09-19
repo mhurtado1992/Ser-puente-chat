@@ -37,17 +37,17 @@ export function WaterVisualizer({ mode = "full", themeStyles }: WaterVisualizerP
       const height = canvas.height;
       const width = canvas.width;
 
-      // Color tints depending on theme (light gallery vs dark river)
+      // Color tints using blue #2b3cdb (light gallery vs dark river)
       const waveColors = isLight
         ? [
-            "rgba(15, 118, 110, 0.03)",
-            "rgba(13, 148, 136, 0.025)",
-            "rgba(20, 184, 166, 0.02)",
+            "rgba(43, 60, 219, 0.035)",
+            "rgba(43, 60, 219, 0.025)",
+            "rgba(43, 60, 219, 0.02)",
           ]
         : [
-            "rgba(20, 95, 90, 0.04)",
-            "rgba(35, 120, 110, 0.03)",
-            "rgba(15, 65, 75, 0.05)",
+            "rgba(43, 60, 219, 0.06)",
+            "rgba(43, 60, 219, 0.045)",
+            "rgba(30, 42, 160, 0.07)",
           ];
 
       const waves = [

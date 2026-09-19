@@ -47,6 +47,7 @@ interface UploadStatus {
   status: "pending" | "uploading" | "success" | "error";
   error?: string;
   pages?: number;
+  charCount?: number;
 }
 
 export function CuratorModal({
@@ -161,17 +162,21 @@ export function CuratorModal({
     if (!files || files.length === 0) return;
 
     const fileList = Array.from(files);
-    const initialStatuses: UploadStatus[] = fileList.map((f) => ({
+    const newItems: UploadStatus[] = fileList.map((f) => ({
       filename: f.name,
       status: "pending",
     }));
 
-    setUploadQueue(initialStatuses);
+    setUploadQueue((prev) => [...prev, ...newItems]);
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       setUploadQueue((prev) =>
-        prev.map((item, idx) => (idx === i ? { ...item, status: "uploading" } : item))
+        prev.map((item) =>
+          item.filename === file.name && item.status === "pending"
+            ? { ...item, status: "uploading" }
+            : item
+        )
       );
 
       try {
@@ -179,68 +184,115 @@ export function CuratorModal({
         const isPdf = lowerName.endsWith(".pdf");
         const isWord = lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
 
-        let extractedText = "";
+        let docResult: any = null;
 
         if (isPdf || isWord) {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
-              const result = reader.result as string;
-              resolve(result.split(",")[1]);
+              const res = reader.result as string;
+              resolve(res.includes(",") ? res.split(",")[1] : res);
             };
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
 
-          const parseRes = await fetch("/api/documents/parse-file", {
+          // Single-step direct upload & index
+          const uploadRes = await fetch("/api/documents/upload-file", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               filename: file.name,
               base64Data: base64,
-              fileType: isPdf ? "pdf" : "docx",
+              fileType: isPdf ? "pdf" : (lowerName.endsWith(".docx") ? "docx" : "doc"),
+              category: "Archivos & Testimonios de la Exposición",
             }),
           });
 
-          if (!parseRes.ok) {
-            const errData = await parseRes.json().catch(() => ({}));
-            throw new Error(errData.error || `Error al procesar ${file.name}`);
+          if (!uploadRes.ok) {
+            // Fallback to parse-file then save
+            const parseRes = await fetch("/api/documents/parse-file", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                filename: file.name,
+                base64Data: base64,
+                fileType: isPdf ? "pdf" : "docx",
+              }),
+            });
+
+            if (!parseRes.ok) {
+              const errData = await parseRes.json().catch(() => ({}));
+              throw new Error(errData.error || `Error al procesar ${file.name}`);
+            }
+
+            const parseData = await parseRes.json();
+            const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+            const saveRes = await fetch("/api/documents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: cleanTitle,
+                category: "Archivos & Testimonios de la Exposición",
+                content: parseData.content,
+                pageCountApprox: parseData.pageCountApprox,
+              }),
+            });
+
+            if (!saveRes.ok) {
+              throw new Error("No se pudo registrar el documento en el índice.");
+            }
+            docResult = await saveRes.json();
+          } else {
+            docResult = await uploadRes.json();
+          }
+        } else {
+          // Plain text / Markdown
+          const textContent = await file.text();
+          if (!textContent.trim()) {
+            throw new Error("El archivo no contiene texto legible.");
           }
 
-          const parseData = await parseRes.json();
-          extractedText = parseData.content;
-        } else {
-          extractedText = await file.text();
+          const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+          const saveRes = await fetch("/api/documents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: cleanTitle,
+              category: "Archivos & Testimonios de la Exposición",
+              content: textContent,
+            }),
+          });
+
+          if (!saveRes.ok) {
+            const errData = await saveRes.json().catch(() => ({}));
+            throw new Error(errData.error || `No se pudo registrar ${file.name}`);
+          }
+          docResult = await saveRes.json();
         }
 
-        if (!extractedText.trim()) {
-          throw new Error("El archivo no contiene texto procesable.");
-        }
-
-        const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-        const saveRes = await fetch("/api/documents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: cleanTitle,
-            category: "Archivos & Testimonios de la Exposición",
-            content: extractedText,
-          }),
-        });
-
-        if (!saveRes.ok) {
-          throw new Error("No se pudo registrar el documento en el índice.");
-        }
+        const pages = docResult?.document?.pageCountApprox || 1;
+        const charCount = docResult?.document?.charCount;
 
         setUploadQueue((prev) =>
-          prev.map((item, idx) => (idx === i ? { ...item, status: "success" } : item))
+          prev.map((item) =>
+            item.filename === file.name
+              ? { ...item, status: "success", pages, charCount }
+              : item
+          )
         );
+
+        onRefreshConfig();
       } catch (err: any) {
-        console.error(err);
+        console.error("Error al procesar archivo:", err);
         setUploadQueue((prev) =>
-          prev.map((item, idx) =>
-            idx === i
-              ? { ...item, status: "error", error: err?.message || "Error al procesar" }
+          prev.map((item) =>
+            item.filename === file.name
+              ? {
+                  ...item,
+                  status: "error",
+                  error: err?.message || "Error al procesar el archivo",
+                }
               : item
           )
         );
@@ -321,8 +373,8 @@ export function CuratorModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800/80 bg-[#090d10]">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-              <h2 className="text-lg font-serif tracking-wide text-stone-100">
+              <span className="w-2 h-2 rounded-full bg-[#2b3cdb] animate-pulse"></span>
+              <h2 className="text-lg font-normal tracking-wide text-stone-100">
                 Panel del Artista & Curaduría de la Exposición
               </h2>
             </div>
@@ -346,11 +398,11 @@ export function CuratorModal({
             onClick={() => setActiveTab("aesthetics")}
             className={`py-3 px-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "aesthetics"
-                ? "border-teal-500 text-teal-300"
+                ? "border-[#2b3cdb] text-[#2b3cdb]"
                 : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
-            <Palette className="w-3.5 h-3.5 text-teal-400" />
+            <Palette className="w-3.5 h-3.5 text-[#2b3cdb]" />
             Estética & Visuales
           </button>
           <button
@@ -358,11 +410,11 @@ export function CuratorModal({
             onClick={() => setActiveTab("voices")}
             className={`py-3 px-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "voices"
-                ? "border-teal-500 text-teal-300"
+                ? "border-[#2b3cdb] text-[#2b3cdb]"
                 : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+            <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
             Bitácora de Voces ({voices.length})
           </button>
           <button
@@ -370,7 +422,7 @@ export function CuratorModal({
             onClick={() => setActiveTab("prompt")}
             className={`py-3 px-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "prompt"
-                ? "border-teal-500 text-teal-300"
+                ? "border-[#2b3cdb] text-[#2b3cdb]"
                 : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
@@ -382,7 +434,7 @@ export function CuratorModal({
             onClick={() => setActiveTab("documents")}
             className={`py-3 px-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "documents"
-                ? "border-teal-500 text-teal-300"
+                ? "border-[#2b3cdb] text-[#2b3cdb]"
                 : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
@@ -394,7 +446,7 @@ export function CuratorModal({
             onClick={() => setActiveTab("status")}
             className={`py-3 px-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "status"
-                ? "border-teal-500 text-teal-300"
+                ? "border-[#2b3cdb] text-[#2b3cdb]"
                 : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
@@ -409,14 +461,14 @@ export function CuratorModal({
           {activeTab === "aesthetics" && (
             <div className="space-y-6">
               {/* Notice */}
-              <div className="p-4 bg-teal-950/20 border border-teal-800/40 rounded-xl text-xs text-teal-200/90 leading-relaxed flex items-start gap-3">
-                <Palette className="w-5 h-5 text-teal-400 flex-shrink-0 mt-0.5" />
+              <div className="p-4 bg-[#2b3cdb]/10 border border-[#2b3cdb]/30 rounded-xl text-xs text-blue-100/90 leading-relaxed flex items-start gap-3">
+                <Palette className="w-5 h-5 text-[#2b3cdb] flex-shrink-0 mt-0.5" />
                 <div>
-                  <strong className="block text-sm text-teal-100 mb-1">
-                    Personalización Estética para tu Exposición
+                  <strong className="block text-sm text-blue-50 mb-1">
+                    Tipografía Epilogue & Color Azul #2b3cdb
                   </strong>
-                  Puedes cambiar el ambiente cromático, los títulos de sala y la tipografía para que armonicen
-                  con los muros de tu galería, la iluminación de sala o el papel de sala donde se exhibe el código QR.
+                  La instalación está configurada con la tipografía <strong>Epilogue</strong> y la tonalidad fluvial <strong>azul #2b3cdb</strong>.
+                  Puedes alternar ambientes cromáticos o personalizar los textos de sala para que armonicen con el espacio expositivo.
                 </div>
               </div>
 
@@ -435,28 +487,28 @@ export function CuratorModal({
                         onClick={() => handleApplyAesthetics({ theme: themeKey })}
                         className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                           isSelected
-                            ? "bg-teal-950/30 border-teal-500 shadow-[0_0_15px_rgba(20,184,166,0.2)] ring-1 ring-teal-500"
+                            ? "bg-[#2b3cdb]/15 border-[#2b3cdb] shadow-[0_0_15px_rgba(43,60,219,0.25)] ring-1 ring-[#2b3cdb]"
                             : "bg-[#090d10] border-stone-800 hover:border-stone-700"
                         }`}
                       >
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-sm font-medium text-stone-100">{t.name}</span>
-                            {isSelected && <CheckCircle2 className="w-4 h-4 text-teal-400" />}
+                            {isSelected && <CheckCircle2 className="w-4 h-4 text-[#2b3cdb]" />}
                           </div>
                           <p className="text-xs text-stone-400 leading-relaxed">{t.subtitle}</p>
                         </div>
                         {/* Visual swatch */}
                         <div className="mt-3 pt-3 border-t border-stone-800/60 flex items-center gap-2">
                           <span
-                            className={`w-4 h-4 rounded-full border border-stone-700 ${
+                            className={`w-4 h-4 rounded-full border border-stone-600 ${
                               t.id === "white_gallery"
-                                ? "bg-[#f8f7f4]"
+                                ? "bg-[#f7f5ee]"
                                 : t.id === "valdivian_forest"
                                 ? "bg-[#07140e]"
                                 : t.id === "stone_canyon"
                                 ? "bg-[#111215]"
-                                : "bg-[#06080a]"
+                                : "bg-[#fbf9f4]"
                             }`}
                           />
                           <span className="text-[10px] font-mono text-stone-500 uppercase">
@@ -479,7 +531,7 @@ export function CuratorModal({
                     type="text"
                     value={localAesthetics.title}
                     onChange={(e) => handleApplyAesthetics({ title: e.target.value })}
-                    className="w-full bg-[#080b0e] border border-stone-800 rounded-lg px-3 py-2 text-sm text-stone-100 focus:outline-none focus:border-teal-500"
+                    className="w-full bg-[#080b0e] border border-stone-800 rounded-lg px-3 py-2 text-sm text-stone-100 focus:outline-none focus:border-[#2b3cdb]"
                     placeholder="Ser Puente"
                   />
                   <span className="text-[11px] text-stone-500 mt-1 block">
@@ -494,7 +546,7 @@ export function CuratorModal({
                     type="text"
                     value={localAesthetics.subtitle}
                     onChange={(e) => handleApplyAesthetics({ subtitle: e.target.value })}
-                    className="w-full bg-[#080b0e] border border-stone-800 rounded-lg px-3 py-2 text-sm text-stone-100 focus:outline-none focus:border-teal-500"
+                    className="w-full bg-[#080b0e] border border-stone-800 rounded-lg px-3 py-2 text-sm text-stone-100 focus:outline-none focus:border-[#2b3cdb]"
                     placeholder="Voces y memorias del Río San Pedro"
                   />
                   <span className="text-[11px] text-stone-500 mt-1 block">
@@ -507,30 +559,30 @@ export function CuratorModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-stone-300 mb-1.5">
-                    Estilo Tipográfico
+                    Estilo Tipográfico (Epilogue)
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => handleApplyAesthetics({ fontStyle: "serif" })}
-                      className={`p-2.5 rounded-lg border text-xs font-serif transition-all ${
+                      className={`p-2.5 rounded-lg border text-xs transition-all ${
                         localAesthetics.fontStyle === "serif"
-                          ? "bg-teal-950/40 border-teal-500 text-teal-200 font-semibold"
+                          ? "bg-[#2b3cdb]/20 border-[#2b3cdb] text-blue-200 font-semibold"
                           : "bg-[#080b0e] border-stone-800 text-stone-400 hover:text-stone-200"
                       }`}
                     >
-                      Serif Poética (Editorial)
+                      Epilogue Display (Editorial)
                     </button>
                     <button
                       type="button"
                       onClick={() => handleApplyAesthetics({ fontStyle: "sans" })}
-                      className={`p-2.5 rounded-lg border text-xs font-sans transition-all ${
+                      className={`p-2.5 rounded-lg border text-xs transition-all ${
                         localAesthetics.fontStyle === "sans"
-                          ? "bg-teal-950/40 border-teal-500 text-teal-200 font-medium"
+                          ? "bg-[#2b3cdb]/20 border-[#2b3cdb] text-blue-200 font-medium"
                           : "bg-[#080b0e] border-stone-800 text-stone-400 hover:text-stone-200"
                       }`}
                     >
-                      Sans Contemporánea (Limpia)
+                      Epilogue Regular (Limpia)
                     </button>
                   </div>
                 </div>
@@ -545,7 +597,7 @@ export function CuratorModal({
                       onClick={() => handleApplyAesthetics({ waterAnimation: "full" })}
                       className={`p-2.5 rounded-lg border text-xs transition-all ${
                         localAesthetics.waterAnimation === "full"
-                          ? "bg-teal-950/40 border-teal-500 text-teal-200"
+                          ? "bg-[#2b3cdb]/20 border-[#2b3cdb] text-blue-200"
                           : "bg-[#080b0e] border-stone-800 text-stone-400 hover:text-stone-200"
                       }`}
                     >
@@ -556,7 +608,7 @@ export function CuratorModal({
                       onClick={() => handleApplyAesthetics({ waterAnimation: "subtle" })}
                       className={`p-2.5 rounded-lg border text-xs transition-all ${
                         localAesthetics.waterAnimation === "subtle"
-                          ? "bg-teal-950/40 border-teal-500 text-teal-200"
+                          ? "bg-[#2b3cdb]/20 border-[#2b3cdb] text-blue-200"
                           : "bg-[#080b0e] border-stone-800 text-stone-400 hover:text-stone-200"
                       }`}
                     >
@@ -567,7 +619,7 @@ export function CuratorModal({
                       onClick={() => handleApplyAesthetics({ waterAnimation: "none" })}
                       className={`p-2.5 rounded-lg border text-xs transition-all ${
                         localAesthetics.waterAnimation === "none"
-                          ? "bg-teal-950/40 border-teal-500 text-teal-200"
+                          ? "bg-[#2b3cdb]/20 border-[#2b3cdb] text-blue-200"
                           : "bg-[#080b0e] border-stone-800 text-stone-400 hover:text-stone-200"
                       }`}
                     >
@@ -593,7 +645,7 @@ export function CuratorModal({
               <div className="p-4 bg-[#080b0e] border border-stone-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xl sm:text-2xl text-teal-300 font-semibold">
+                    <span className="font-mono text-xl sm:text-2xl text-[#2b3cdb] font-semibold">
                       {voices.length}
                     </span>
                     <span className="text-sm text-stone-200 font-medium">
@@ -612,7 +664,7 @@ export function CuratorModal({
                     type="button"
                     onClick={() => exportVoicesToCSV(voices, localAesthetics.title)}
                     disabled={voices.length === 0}
-                    className="px-3 py-2 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-700/60 text-teal-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-40"
+                    className="px-3 py-2 bg-[#2b3cdb]/20 hover:bg-[#2b3cdb]/35 border border-[#2b3cdb]/50 text-blue-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-40"
                     title="Descargar tabla completa para Excel con tildes correctos"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -646,7 +698,7 @@ export function CuratorModal({
                   value={voicesSearch}
                   onChange={(e) => setVoicesSearch(e.target.value)}
                   placeholder="Buscar palabras o testimonios del público (ej. 'riñihuazo', 'recuerdo', 'abuelo', 'agua')..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-[#080b0e] border border-stone-800 rounded-xl text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-teal-500"
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#080b0e] border border-stone-800 rounded-xl text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-[#2b3cdb]"
                 />
               </div>
 
@@ -664,10 +716,10 @@ export function CuratorModal({
                   filteredVoices.map((v) => (
                     <div
                       key={v.id}
-                      className="p-4 bg-[#090d10] border border-stone-800/80 rounded-xl space-y-2 text-xs hover:border-stone-700/80 transition-all"
+                      className="p-4 bg-[#090d10] border border-stone-800/80 rounded-xl space-y-2 text-xs hover:border-[#2b3cdb]/40 transition-all"
                     >
                       <div className="flex items-center justify-between text-[11px] text-stone-500">
-                        <span className="font-mono text-teal-400/90 font-medium">
+                        <span className="font-mono text-[#2b3cdb] font-medium">
                           {v.visitorId}
                         </span>
                         <span>
@@ -678,10 +730,10 @@ export function CuratorModal({
                         </span>
                       </div>
                       <div className="space-y-1.5 pt-1">
-                        <p className="text-stone-100 font-serif italic text-sm">
+                        <p className="text-stone-100 italic text-sm">
                           "{v.userMessage}"
                         </p>
-                        <p className="text-stone-400 text-[11px] leading-relaxed border-l-2 border-teal-800/40 pl-2.5 mt-1">
+                        <p className="text-stone-400 text-[11px] leading-relaxed border-l-2 border-[#2b3cdb]/50 pl-2.5 mt-1">
                           {v.riverReply}
                         </p>
                       </div>
@@ -708,7 +760,7 @@ export function CuratorModal({
           {/* TAB 3: SYSTEM PROMPT */}
           {activeTab === "prompt" && (
             <div className="space-y-4">
-              <div className="bg-teal-950/20 border border-teal-900/40 rounded-lg p-3 text-xs text-teal-200/90 leading-relaxed">
+              <div className="bg-[#2b3cdb]/10 border border-[#2b3cdb]/30 rounded-lg p-3 text-xs text-blue-100/90 leading-relaxed">
                 <strong>Personalidad activa:</strong> Aquí puedes ajustar la voz poética y directrices de cómo habla el Río San Pedro (Wazalafken).
               </div>
 
@@ -717,7 +769,7 @@ export function CuratorModal({
                 value={instructionText}
                 onChange={(e) => setInstructionText(e.target.value)}
                 rows={12}
-                className="w-full bg-[#080b0e] border border-stone-800 rounded-xl p-4 font-mono text-xs text-stone-200 leading-relaxed focus:outline-none focus:border-teal-500"
+                className="w-full bg-[#080b0e] border border-stone-800 rounded-xl p-4 font-mono text-xs text-stone-200 leading-relaxed focus:outline-none focus:border-[#2b3cdb]"
               />
 
               <div className="flex items-center justify-between pt-2">
@@ -738,7 +790,7 @@ export function CuratorModal({
                     id="save-prompt-btn"
                     onClick={handleSavePrompt}
                     disabled={isSavingPrompt}
-                    className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    className="px-4 py-2 bg-[#2b3cdb] hover:bg-[#2231bd] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     {isSavingPrompt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     Guardar Prompt
@@ -766,48 +818,72 @@ export function CuratorModal({
                 onClick={() => fileInputRef.current?.click()}
                 className={`p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all text-center space-y-2 ${
                   isDragging
-                    ? "border-teal-400 bg-teal-950/20"
-                    : "border-stone-800 hover:border-teal-700/60 bg-[#080b0e]"
+                    ? "border-[#2b3cdb] bg-[#2b3cdb]/10"
+                    : "border-stone-800 hover:border-[#2b3cdb]/60 bg-[#080b0e]"
                 }`}
               >
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".pdf,.docx,.doc,.txt"
+                  accept=".pdf,.docx,.doc,.txt,.md,.rtf"
                   className="hidden"
                   onChange={(e) => handleFilesSelected(e.target.files)}
                 />
-                <UploadCloud className="w-8 h-8 mx-auto text-teal-400/80" />
+                <UploadCloud className="w-8 h-8 mx-auto text-[#2b3cdb]" />
                 <p className="text-xs font-medium text-stone-200">
-                  Arrastra aquí archivos PDF, Word (.docx) o texto plano
+                  Arrastra aquí archivos PDF, Word (.docx, .doc) o texto plano (.txt, .md)
                 </p>
                 <p className="text-[11px] text-stone-500">
-                  Procesamiento automático de investigaciones, relatos orales y memorias
+                  Extracción e indexación automática para la memoria viva del Río San Pedro
                 </p>
               </div>
 
-              {/* Upload progress */}
+              {/* Upload progress & queue */}
               {uploadQueue.length > 0 && (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-stone-400 px-1">
+                    <span>Estado de incorporación de archivos</span>
+                    <button
+                      type="button"
+                      onClick={() => setUploadQueue([])}
+                      className="text-stone-500 hover:text-stone-300 transition-colors"
+                    >
+                      Limpiar lista
+                    </button>
+                  </div>
                   {uploadQueue.map((item, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between p-2.5 bg-[#080b0e] border border-stone-800 rounded-lg text-xs"
+                      className={`flex items-center justify-between p-2.5 rounded-lg text-xs transition-colors ${
+                        item.status === "error"
+                          ? "border border-red-900/50 bg-red-950/20"
+                          : item.status === "success"
+                          ? "border border-emerald-900/40 bg-emerald-950/15"
+                          : "border border-stone-800 bg-[#080b0e]"
+                      }`}
                     >
-                      <span className="truncate max-w-xs text-stone-300">{item.filename}</span>
+                      <span className="truncate max-w-[220px] sm:max-w-xs text-stone-300 font-medium">
+                        {item.filename}
+                      </span>
+                      {item.status === "pending" && (
+                        <span className="text-stone-500 text-[11px]">En cola</span>
+                      )}
                       {item.status === "uploading" && (
-                        <span className="text-teal-400 flex items-center gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Procesando
+                        <span className="text-[#2b3cdb] flex items-center gap-1.5 text-[11px]">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Incorporando al río...
                         </span>
                       )}
                       {item.status === "success" && (
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Incorporado
+                        <span className="text-emerald-400 flex items-center gap-1 text-[11px] font-medium">
+                          <Check className="w-3.5 h-3.5" />
+                          Incorporado {item.pages ? `(~${item.pages} pág${item.pages > 1 ? "s" : ""})` : ""}
                         </span>
                       )}
                       {item.status === "error" && (
-                        <span className="text-red-400">{item.error || "Error"}</span>
+                        <span className="text-red-400 text-[11px] font-medium max-w-[260px] truncate" title={item.error}>
+                          {item.error || "Error al procesar"}
+                        </span>
                       )}
                     </div>
                   ))}
@@ -827,7 +903,7 @@ export function CuratorModal({
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-stone-200">{doc.title}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-900 border border-stone-800 text-teal-400">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2b3cdb]/10 border border-[#2b3cdb]/30 text-[#2b3cdb]">
                           {doc.category}
                         </span>
                       </div>
@@ -871,7 +947,7 @@ export function CuratorModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-3 bg-[#050709] rounded-lg border border-stone-900">
                     <span className="text-stone-500 text-[10px] uppercase block">Tokens aprox/msj</span>
-                    <span className="font-mono text-teal-300 font-semibold text-sm">~2.000</span>
+                    <span className="font-mono text-[#2b3cdb] font-semibold text-sm">~2.000</span>
                   </div>
                   <div className="p-3 bg-[#050709] rounded-lg border border-stone-900">
                     <span className="text-stone-500 text-[10px] uppercase block">Concurrencia</span>
@@ -879,7 +955,7 @@ export function CuratorModal({
                   </div>
                   <div className="p-3 bg-[#050709] rounded-lg border border-stone-900">
                     <span className="text-stone-500 text-[10px] uppercase block">Resiliencia</span>
-                    <span className="font-mono text-teal-300 font-semibold text-sm">Cero Errores 500</span>
+                    <span className="font-mono text-[#2b3cdb] font-semibold text-sm">Cero Errores 500</span>
                   </div>
                 </div>
               </div>

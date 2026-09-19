@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Sparkles, AlertCircle } from "lucide-react";
+import { Send, Sparkles, AlertCircle, Waves } from "lucide-react";
 import { ChatMessage, ExhibitionConfig, ExhibitionAesthetics } from "./types";
 import { ExhibitionHeader } from "./components/ExhibitionHeader";
 import { MessageItem } from "./components/MessageItem";
@@ -8,13 +8,7 @@ import { WaterVisualizer } from "./components/WaterVisualizer";
 import { queryRiver } from "./utils/riverEngine";
 import { THEMES, loadAesthetics } from "./utils/themeConfig";
 import { logVisitorVoice } from "./utils/visitorVoices";
-
-const SUGGESTED_QUESTIONS = [
-  "¿Cómo viviste la hazaña solidaria del Riñihuazo en 1960?",
-  "¿Qué significa para ti correr libre y sin represas?",
-  "¿Qué seres y espíritus habitan tus aguas profundas?",
-  "¿Qué memorias guardas de las comunidades que caminan tu orilla?",
-];
+import riverPhoto from "./assets/images/rio_san_pedro.jpg";
 
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -58,6 +52,26 @@ export default function App() {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
+  };
+
+  const handleStartConnectionsGame = () => {
+    const modelMsg: ChatMessage = {
+      id: `msg-${Date.now()}-model`,
+      role: "model",
+      text: "Soy el río San Pedro, Wazalafken. Cuéntame un recuerdo tuyo con un río, un mar, un lago, o cualquier cuerpo de agua — no tiene que ser conmigo. Todos somos parte de la misma red.",
+      timestamp: Date.now(),
+    };
+    setMessages([modelMsg]);
+  };
+
+  const handleStartExploreVoices = () => {
+    const modelMsg: ChatMessage = {
+      id: `msg-${Date.now()}-model`,
+      role: "model",
+      text: "Soy el río San Pedro, Wazalafken. Llevo dentro las voces reales de personas que conocieron mi cuenca: desde los relatos de la gesta del Riñihuazo en 1960 y la memoria de los boteros de Los Lagos, hasta las investigaciones de quienes defienden mis aguas libres de represas. Puedes preguntarme libremente sobre alguna de estas historias o lo que desees conocer de mi cauce.",
+      timestamp: Date.now(),
+    };
+    setMessages([modelMsg]);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -152,65 +166,88 @@ export default function App() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative z-10">
         {/* Welcome State / Gallery Entrance */}
         {messages.length === 0 && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center my-auto py-8 sm:py-16 space-y-8 animate-fade-in">
-            {/* Medallion */}
-            <div className="relative">
-              <div
-                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border flex items-center justify-center shadow-lg mx-auto ${themeStyles.accentIconBg} ${themeStyles.accentIconBorder} ${themeStyles.accentColor}`}
-              >
-                <Sparkles className="w-8 h-8 sm:w-9 sm:h-9 opacity-90 animate-pulse" />
+          <div className="flex-1 flex flex-col justify-center my-auto py-6 sm:py-12 space-y-6 sm:space-y-8 animate-fade-in">
+            {/* Intro layout: text on the left, photograph adjusted to the right */}
+            <div className="w-full flex flex-col md:flex-row items-center md:items-start justify-between gap-6 sm:gap-8">
+              {/* Text block */}
+              <div className="flex-1 space-y-3 sm:space-y-4 text-left">
+                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#2b3cdb] block">
+                  Instalación Sonora & Dialógica
+                </span>
+                <h2
+                  className={`text-[21px] tracking-wide font-light leading-snug ${
+                    isSerif ? "font-serif" : "font-sans font-normal"
+                  } text-[#2b3cdb]`}
+                >
+                  Habla con el Río San Pedro
+                </h2>
+                <p className="text-[10px] leading-[15.75px] italic font-light text-[#2b3cdb]">
+                  "Mis aguas nacen en el lago Riñihue y viajan llevando la memoria del Riñihuazo, las voces de las comunidades ribereñas, las piedras y los rápidos que defienden mi curso libre. Siéntate a mi orilla... ¿qué deseas saber?"
+                </p>
               </div>
-              <div className="absolute -bottom-2 inset-x-0 mx-auto w-12 h-1 bg-teal-500/20 blur-sm rounded-full"></div>
-            </div>
 
-            {/* Poetic Intro */}
-            <div className="space-y-4 max-w-xl mx-auto px-2">
-              <span className={`text-[11px] font-mono uppercase tracking-[0.25em] ${themeStyles.accentColor}`}>
-                Instalación Sonora & Dialógica
-              </span>
-              <h2
-                className={`text-2xl sm:text-4xl tracking-wide font-light leading-snug ${
-                  isSerif ? "font-serif" : "font-sans font-normal"
-                } ${themeStyles.textColor}`}
-              >
-                Habla con el Río San Pedro
-              </h2>
-              <p
-                className={`text-sm sm:text-base italic font-light leading-relaxed ${
-                  themeStyles.textMuted
-                }`}
-              >
-                "Mis aguas nacen en el lago Riñihue y viajan llevando la memoria del Riñihuazo, las voces de las comunidades ribereñas, las piedras y los rápidos que defienden mi curso libre. Siéntate a mi orilla... ¿qué deseas saber?"
-              </p>
-              <div
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-light ${themeStyles.accentBadge}`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-                Acceso libre: escribe directamente abajo sin necesidad de registrarte ni iniciar sesión
+              {/* Photo adjusted to the right */}
+              <div className="w-full sm:w-72 md:w-64 lg:w-72 shrink-0 self-center md:self-start flex flex-col items-end">
+                <div className="relative group w-full overflow-hidden">
+                  <img
+                    src={riverPhoto}
+                    alt="Río San Pedro"
+                    referrerPolicy="no-referrer"
+                    className="w-full aspect-[4/3] object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#2b3cdb]/20 via-transparent to-transparent pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            {/* Suggested prompts */}
-            <div className="w-full max-w-lg space-y-2 pt-2">
-              <p className={`text-xs uppercase font-mono tracking-widest mb-3 ${themeStyles.textMuted}`}>
-                Preguntas sugeridas al río:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {SUGGESTED_QUESTIONS.map((q, idx) => (
-                  <button
-                    key={idx}
-                    id={`suggested-question-${idx}`}
-                    onClick={() => handleSendMessage(q)}
-                    type="button"
-                    className={`p-3 text-left text-xs italic rounded-xl transition-all duration-200 shadow-sm border ${
-                      themeStyles.isLight
-                        ? "bg-white/90 hover:bg-teal-50/50 text-stone-800 border-stone-300 hover:border-teal-500/60"
-                        : "bg-[#0a0e12]/80 hover:bg-teal-950/40 text-stone-300 hover:text-teal-200 border-stone-800 hover:border-teal-800/60"
-                    }`}
-                  >
-                    "{q}"
-                  </button>
-                ))}
+            {/* Suggestion Starter Buttons (Google-style) */}
+            <div className="w-full pt-1 sm:pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
+                {/* Botón 1: El juego de las conexiones */}
+                <button
+                  id="btn-start-connections-game"
+                  type="button"
+                  onClick={handleStartConnectionsGame}
+                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-white hover:bg-blue-50/40 border-[#e6dfd1] hover:border-[#2b3cdb] text-[#2b3cdb]"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="w-9 h-9 rounded-xl bg-[#2b3cdb]/15 text-[#2b3cdb] flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Sparkles className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-mono tracking-wider uppercase text-[#2b3cdb] font-medium px-2 py-0.5 rounded-full bg-[#2b3cdb]/10 border border-[#2b3cdb]/30">
+                      Paso a paso
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight text-[#2b3cdb]">El juego de las conexiones</h3>
+                    <p className="text-xs mt-1 leading-snug text-[#2b3cdb]/80">
+                      Comparte un recuerdo con el agua y descubre qué historia te responde.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Botón 2: Explora las voces del río */}
+                <button
+                  id="btn-start-explore-voices"
+                  type="button"
+                  onClick={handleStartExploreVoices}
+                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-white hover:bg-blue-50/40 border-[#e6dfd1] hover:border-[#2b3cdb] text-[#2b3cdb]"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="w-9 h-9 rounded-xl bg-[#2b3cdb]/15 text-[#2b3cdb] flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Waves className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-mono tracking-wider uppercase text-[#2b3cdb] font-medium px-2 py-0.5 rounded-full bg-[#2b3cdb]/10 border border-[#2b3cdb]/30">
+                      Diálogo libre
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight text-[#2b3cdb]">Explora las voces del río</h3>
+                    <p className="text-xs mt-1 leading-snug text-[#2b3cdb]/80">
+                      Conversa libremente sobre testimonios reales, historia y el cauce libre.
+                    </p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
@@ -237,13 +274,9 @@ export default function App() {
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div
-                  className={`rounded-2xl px-5 py-3.5 text-xs sm:text-sm italic flex items-center gap-2 border ${
-                    themeStyles.isLight
-                      ? "bg-white border-stone-300 text-stone-700 shadow-sm"
-                      : "bg-[#0c1014]/90 border-stone-800/90 text-stone-400"
-                  }`}
+                  className="rounded-2xl px-5 py-3.5 text-xs sm:text-sm italic flex items-center gap-2 border bg-white border-[#e6dfd1] text-[#2b3cdb] shadow-sm"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2b3cdb] animate-ping"></span>
                   Las aguas se agitan y buscan en su memoria...
                 </div>
               </div>
@@ -272,7 +305,7 @@ export default function App() {
               e.preventDefault();
               handleSendMessage();
             }}
-            className={`relative flex items-end gap-2 border focus-within:ring-1 focus-within:ring-teal-500/40 rounded-2xl p-2 transition-all shadow-lg ${themeStyles.inputBg} ${themeStyles.inputBorder}`}
+            className={`relative flex items-end gap-2 border focus-within:ring-2 focus-within:ring-[#2b3cdb]/50 rounded-2xl p-2 transition-all shadow-lg ${themeStyles.inputBg} ${themeStyles.inputBorder}`}
           >
             <textarea
               id="visitor-chat-textarea"
@@ -283,18 +316,14 @@ export default function App() {
               placeholder="Habla con el río San Pedro..."
               rows={1}
               disabled={isLoading}
-              className={`flex-1 bg-transparent text-sm sm:text-base px-3 py-1.5 resize-none focus:outline-none min-h-[38px] max-h-[120px] ${
-                themeStyles.isLight
-                  ? "text-stone-900 placeholder-stone-400"
-                  : "text-stone-100 placeholder-stone-500"
-              }`}
+              className="flex-1 bg-transparent text-sm sm:text-base px-3 py-1.5 resize-none focus:outline-none min-h-[38px] max-h-[120px] text-[#2b3cdb] placeholder-[#2b3cdb]/50"
             />
 
             <button
               id="send-message-btn"
               type="submit"
               disabled={isLoading || !inputValue.trim()}
-              className="p-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-30 disabled:hover:bg-teal-600 text-white transition-all shadow-md flex-shrink-0"
+              className="p-2.5 rounded-xl bg-[#2b3cdb] hover:bg-[#2231bd] disabled:opacity-30 disabled:hover:bg-[#2b3cdb] text-white transition-all shadow-md shadow-[#2b3cdb]/30 flex-shrink-0"
               title="Enviar mensaje al río"
             >
               <Send className="w-4 h-4" />
@@ -302,11 +331,10 @@ export default function App() {
           </form>
 
           <div
-            className={`flex items-center justify-between mt-2 px-1 text-[11px] ${themeStyles.textMuted}`}
+            className="flex items-center justify-between mt-2 px-1 text-[8px] text-[#2b3cdb]/70 font-light"
           >
-            <span>"{aesthetics.title}" — Exposición Interactiva</span>
-            <span className="hidden sm:inline">Presiona Enter para enviar</span>
-            <span>Acceso Abierto Sin Registro</span>
+            <span>Valdivia, Chile - 2026</span>
+            <span>Presiona Enter para enviar</span>
           </div>
         </div>
       </footer>

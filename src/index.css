@@ -1,20 +1,49 @@
 @import "tailwindcss";
 
+@import url('https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&display=swap');
+
 @theme {
-  --font-serif: "Cormorant Garamond", Georgia, serif;
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-serif: "Epilogue", Georgia, serif;
+  --font-sans: "Epilogue", system-ui, sans-serif;
+  --font-epilogue: "Epilogue", system-ui, sans-serif;
 }
 
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #06080a;
-  color: #e2e8f0;
-  font-family: var(--font-sans);
+  background-color: #fbf9f4;
+  color: #2b3cdb;
+  font-family: "Epilogue", system-ui, sans-serif;
   overflow-x: hidden;
 }
 
-/* Custom subtle scrollbar */
+*, ::before, ::after {
+  font-family: "Epilogue", system-ui, sans-serif;
+}
+
+/* Markdown typography in #2b3cdb */
+.markdown-body {
+  color: #2b3cdb;
+}
+
+.markdown-body p,
+.markdown-body span,
+.markdown-body strong,
+.markdown-body em,
+.markdown-body li,
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body blockquote {
+  color: #2b3cdb !important;
+}
+
+.markdown-body blockquote {
+  border-left-color: rgba(43, 60, 219, 0.4) !important;
+}
+
+/* Custom subtle scrollbar in blue #2b3cdb */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -23,9 +52,9 @@ html, body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(45, 95, 100, 0.3);
+  background: rgba(43, 60, 219, 0.35);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(56, 178, 172, 0.5);
+  background: rgba(43, 60, 219, 0.7);
 }

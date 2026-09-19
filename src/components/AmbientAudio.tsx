@@ -104,24 +104,24 @@ export function AmbientAudio() {
       id="ambient-sound-toggle-btn"
       onClick={toggleSound}
       type="button"
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all duration-300 border ${
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] transition-all duration-300 border ${
         isPlaying
-          ? "bg-teal-950/60 border-teal-500/40 text-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.15)]"
-          : "bg-stone-900/50 border-stone-800/80 text-stone-400 hover:text-stone-300 hover:border-stone-700"
+          ? "bg-[#2b3cdb]/10 border-[#2b3cdb]/40 text-[#2b3cdb] shadow-[0_0_15px_rgba(43,60,219,0.15)]"
+          : "bg-white/90 border-[#ded7c8] text-[#2b3cdb] hover:border-[#2b3cdb]/50 shadow-xs"
       }`}
       title={isPlaying ? "Silenciar rumor del río" : "Escuchar rumor del río"}
     >
       {isPlaying ? (
         <>
-          <Volume2 className="w-3.5 h-3.5 text-teal-400 animate-pulse" />
-          <span className="hidden sm:inline font-light tracking-wider">Rumor del agua activo</span>
-          <span className="sm:hidden font-light">Audio</span>
+          <Volume2 className="w-3.5 h-3.5 text-[#2b3cdb] animate-pulse" />
+          <span className="hidden sm:inline font-light tracking-wider text-[#2b3cdb]">Rumor del agua activo</span>
+          <span className="sm:hidden font-light text-[#2b3cdb]">Audio</span>
         </>
       ) : (
         <>
-          <VolumeX className="w-3.5 h-3.5 opacity-60" />
-          <span className="hidden sm:inline font-light tracking-wider">Escuchar el río</span>
-          <span className="sm:hidden font-light">Sonido</span>
+          <VolumeX className="w-3.5 h-3.5 text-[#2b3cdb] opacity-75" />
+          <span className="hidden sm:inline font-light tracking-wider text-[#2b3cdb]">Escuchar el río</span>
+          <span className="sm:hidden font-light text-[#2b3cdb]">Sonido</span>
         </>
       )}
     </button>
