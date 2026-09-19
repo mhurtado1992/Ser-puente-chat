@@ -1,9 +1,16 @@
 import { useEffect, useRef } from "react";
+import { ThemeStyles } from "../utils/themeConfig";
 
-export function WaterVisualizer() {
+interface WaterVisualizerProps {
+  mode?: "full" | "subtle" | "none";
+  themeStyles?: ThemeStyles;
+}
+
+export function WaterVisualizer({ mode = "full", themeStyles }: WaterVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    if (mode === "none") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -20,18 +27,33 @@ export function WaterVisualizer() {
     window.addEventListener("resize", resize);
     resize();
 
+    const isLight = themeStyles?.isLight ?? false;
+    const isSubtle = mode === "subtle";
+
     const draw = () => {
-      step += 0.008;
+      step += isSubtle ? 0.004 : 0.008;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const height = canvas.height;
       const width = canvas.width;
 
-      // Draw subtle luminous water wave lines across bottom/middle
+      // Color tints depending on theme (light gallery vs dark river)
+      const waveColors = isLight
+        ? [
+            "rgba(15, 118, 110, 0.03)",
+            "rgba(13, 148, 136, 0.025)",
+            "rgba(20, 184, 166, 0.02)",
+          ]
+        : [
+            "rgba(20, 95, 90, 0.04)",
+            "rgba(35, 120, 110, 0.03)",
+            "rgba(15, 65, 75, 0.05)",
+          ];
+
       const waves = [
-        { y: height * 0.85, length: 0.004, amplitude: 24, color: "rgba(20, 95, 90, 0.04)" },
-        { y: height * 0.88, length: 0.003, amplitude: 32, color: "rgba(35, 120, 110, 0.03)" },
-        { y: height * 0.92, length: 0.005, amplitude: 18, color: "rgba(15, 65, 75, 0.05)" },
+        { y: height * 0.85, length: 0.004, amplitude: isSubtle ? 12 : 24, color: waveColors[0] },
+        { y: height * 0.88, length: 0.003, amplitude: isSubtle ? 16 : 32, color: waveColors[1] },
+        { y: height * 0.92, length: 0.005, amplitude: isSubtle ? 10 : 18, color: waveColors[2] },
       ];
 
       waves.forEach((w, idx) => {
@@ -56,13 +78,14 @@ export function WaterVisualizer() {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [mode, themeStyles]);
+
+  if (mode === "none") return null;
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 opacity-70"
-      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none z-0 opacity-80"
     />
   );
 }

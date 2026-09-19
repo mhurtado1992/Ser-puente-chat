@@ -520,6 +520,22 @@ app.post("/api/chat", async (req, res) => {
     }
 
     res.json({ reply: replyText, retrievalMode });
+
+    // Automatically record this visitor voice in the collective archive
+    try {
+      const voiceRecord = {
+        id: `voice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        visitorId: (req.headers["x-visitor-id"] as string) || "visitante-movil",
+        userMessage: message,
+        riverReply: replyText,
+        timestamp: Date.now(),
+      };
+      collectiveVoices.unshift(voiceRecord);
+      if (collectiveVoices.length > 5000) collectiveVoices = collectiveVoices.slice(0, 5000);
+      fs.writeFileSync(VOICES_FILE, JSON.stringify(collectiveVoices, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("No se pudo guardar la voz en voices.json:", e);
+    }
   } catch (error: any) {
     console.error("Error al generar respuesta del río:", error);
     // Even in catastrophic server exceptions, always return a river response so exhibition visitors never see a broken red box
@@ -528,6 +544,57 @@ app.post("/api/chat", async (req, res) => {
       retrievalMode: "fallback_resilient"
     });
   }
+});
+
+// Collective Voices Endpoints for Exhibition Archive
+const VOICES_FILE = path.join(process.cwd(), "data", "voices.json");
+let collectiveVoices: Array<{
+  id: string;
+  visitorId: string;
+  userMessage: string;
+  riverReply: string;
+  timestamp: number;
+}> = [];
+
+try {
+  if (fs.existsSync(VOICES_FILE)) {
+    collectiveVoices = JSON.parse(fs.readFileSync(VOICES_FILE, "utf-8"));
+  }
+} catch (e) {
+  console.warn("Could not read voices.json, starting empty:", e);
+}
+
+app.get("/api/voices", (_req, res) => {
+  res.json({ voices: collectiveVoices, totalCount: collectiveVoices.length });
+});
+
+app.post("/api/voices", (req, res) => {
+  const { visitorId, userMessage, riverReply } = req.body || {};
+  if (userMessage) {
+    const newVoice = {
+      id: `voice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      visitorId: visitorId || "visitante-movil",
+      userMessage: String(userMessage),
+      riverReply: String(riverReply || ""),
+      timestamp: Date.now(),
+    };
+    collectiveVoices.unshift(newVoice);
+    if (collectiveVoices.length > 5000) collectiveVoices = collectiveVoices.slice(0, 5000);
+    try {
+      fs.writeFileSync(VOICES_FILE, JSON.stringify(collectiveVoices, null, 2), "utf-8");
+    } catch {}
+    res.json({ success: true, count: collectiveVoices.length });
+    return;
+  }
+  res.status(400).json({ error: "Missing message" });
+});
+
+app.delete("/api/voices", (_req, res) => {
+  collectiveVoices = [];
+  try {
+    if (fs.existsSync(VOICES_FILE)) fs.unlinkSync(VOICES_FILE);
+  } catch {}
+  res.json({ success: true, count: 0 });
 });
 
 // Setup Vite or Static serving
