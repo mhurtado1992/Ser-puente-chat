@@ -16,6 +16,17 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [config, setConfig] = useState<ExhibitionConfig | null>(null);
   const [isCuratorOpen, setIsCuratorOpen] = useState(false);
+  const [secretClicks, setSecretClicks] = useState(0);
+
+const handleSecretClick = () => {
+  setSecretClicks((prev) => {
+    if (prev + 1 >= 3) {
+      setIsCuratorOpen(true);
+      return 0;
+    }
+    return prev + 1;
+  });
+};
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [aesthetics, setAesthetics] = useState<ExhibitionAesthetics>(loadAesthetics);
 
@@ -166,9 +177,11 @@ export default function App() {
       <WaterVisualizer mode={aesthetics.waterAnimation} themeStyles={themeStyles} />
 
       {/* Main Header */}
+   {/* Main Header */}
       <ExhibitionHeader
         onResetChat={handleResetChat}
-        onOpenCurator={() => setIsCuratorOpen(true)}
+        onOpenAbout={() => setIsAboutOpen(true)}
+        onSecretClick={handleSecretClick}
         messageCount={messages.length}
         aesthetics={aesthetics}
         themeStyles={themeStyles}

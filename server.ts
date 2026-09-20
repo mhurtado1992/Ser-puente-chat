@@ -14,7 +14,7 @@ import { DocumentIndex } from "./src/server/retrieval.ts";
 
 dotenv.config();
 
-const currentFilePath = typeof import.meta?.url === "string" ? fileURLToPath(import.meta.url) : process.cwd();
+const currentFilePath = typeof __filename !== 'undefined' ? __filename : process.cwd();
 const currentDirPath = path.dirname(currentFilePath);
 
 const app = express();
@@ -155,7 +155,7 @@ app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
     hasApiKey: Boolean(process.env.GEMINI_API_KEY),
-    model: "gemini-3.8-flash",
+    model: "gemini-2.5-flash",
   });
 });
 
@@ -164,8 +164,6 @@ app.get("/api/config", (_req, res) => {
   const totalPages = documents.reduce((sum, d) => sum + (d.pageCountApprox || 10), 0);
   const totalWords = documents.reduce((sum, d) => sum + d.content.split(/\s+/).length, 0);
 
-  // In Smart RAG mode: persona prompt + top 4 chunks (~1600 words) = ~2,500 tokens
-  // In Full Context mode: persona prompt + all words in documents / 0.75
   const estimatedTokensPerQuery =
     retrievalMode === "smart_rag"
       ? Math.min(3200, Math.round(activeSystemInstruction.length / 4) + 1600)
@@ -206,7 +204,7 @@ app.post("/api/config/retrieval-mode", (req, res) => {
   }
 });
 
-// Update the system instruction (to paste the full Claude prompt whenever the user wants)
+// Update the system instruction
 app.post("/api/update-instruction", (req, res) => {
   const { instruction } = req.body;
   if (!instruction || typeof instruction !== "string") {
@@ -271,13 +269,13 @@ async function extractTextFromFileBuffer(
     return { text, pages };
   }
 
-  // Fallback: UTF-8 plain text / markdown / rtf
+  // Fallback: UTF-8 plain text
   const text = buffer.toString("utf-8").trim();
   const pages = Math.max(1, Math.ceil(text.length / 1800));
   return { text, pages };
 }
 
-// Parse file endpoint (supports PDF, DOCX, DOC, TXT)
+// Parse file endpoint
 app.post("/api/documents/parse-file", async (req, res) => {
   try {
     const { filename, base64, base64Data, fileType } = req.body;
@@ -313,7 +311,7 @@ app.post("/api/documents/parse-file", async (req, res) => {
   }
 });
 
-// Single-step upload & index endpoint (saves file directly to knowledge base)
+// Single-step upload & index endpoint
 app.post("/api/documents/upload-file", async (req, res) => {
   try {
     const { filename, base64, base64Data, category, fileType } = req.body;
@@ -367,7 +365,7 @@ app.post("/api/documents/upload-file", async (req, res) => {
   }
 });
 
-// Upload and parse a PDF file
+// Upload PDF
 app.post("/api/upload-pdf", async (req, res) => {
   try {
     const { filename, base64, base64Data, category } = req.body;
@@ -419,7 +417,7 @@ app.post("/api/upload-pdf", async (req, res) => {
   }
 });
 
-// Upload and parse Word document (.docx or .doc)
+// Upload Word
 app.post("/api/upload-word", async (req, res) => {
   try {
     const { filename, base64, base64Data, category } = req.body;
@@ -471,7 +469,7 @@ app.post("/api/upload-word", async (req, res) => {
   }
 });
 
-// Upload text or markdown file
+// Upload Text
 app.post("/api/upload-text", (req, res) => {
   const { filename, content, category } = req.body;
   if (!filename || !content) {
@@ -495,7 +493,7 @@ app.post("/api/upload-text", (req, res) => {
   res.json({ success: true, document: newDoc, totalDocuments: documents.length });
 });
 
-// Add manual document content
+// Add manual document
 app.post("/api/documents", (req, res) => {
   const { title, category, content, pageCountApprox } = req.body;
   if (!title || !content) {
@@ -515,7 +513,7 @@ app.post("/api/documents", (req, res) => {
   res.json({ success: true, document: newDoc, totalCount: documents.length });
 });
 
-// Delete a document
+// Delete document
 app.delete("/api/documents/:id", (req, res) => {
   const { id } = req.params;
   const initialLen = documents.length;
@@ -525,7 +523,7 @@ app.delete("/api/documents/:id", (req, res) => {
   res.json({ success: true, deleted: initialLen !== documents.length, remaining: documents.length });
 });
 
-// Reset documents to default
+// Reset documents
 app.post("/api/documents/reset", (_req, res) => {
   try {
     const existing = fs.readdirSync(DATA_DIR);
@@ -547,10 +545,10 @@ app.post("/api/documents/reset", (_req, res) => {
   res.json({ success: true, documentsCount: documents.length });
 });
 
-// Main exhibition Chat Endpoint
+// Main Chat Endpoint
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, mode, history, systemInstruction } = req.body;
 
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "El mensaje es requerido." });
@@ -558,37 +556,46 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const ai = getGenAI();
-    // In Smart RAG mode, query-directed context retrieval saves ~98% of tokens
-    const systemPromptWithDocs = compileContext(message);
 
-    // Map conversation history into Gemini format (limit to last 6 messages to preserve token window)
+    // Instrucción para distinguir el comportamiento según el modo seleccionado
+    const modePrompt = mode === 'libre'
+      ? `INSTRUCCIÓN CRÍTICA PARA MODO DIÁLOGO LIBRE:
+El visitante seleccionó "Diálogo Libre" para aprender e indagar sobre el territorio.
+- Queda ESTRICTAMENTE PROHIBIDO pedirle recuerdos personales al visitante o invitarlo a jugar al "juego de las conexiones".
+- Responde directamente a lo que te pregunta con información concreta, variada y rica de tus documentos (Marco el geólogo, rocas, peces endémicos, la Sra. Maximina, aves del Mocho-Choshuenco, Lola Hoffmann y la causa del cauce libre).
+- MANTÉN LA REGLA INTERESPECIE: Habla desde la vida no-humana, la ciencia y los saberes del territorio.
+- NO menciones el terremoto de 1960 o el Riñihuazo a menos que el visitante lo pida explícitamente.`
+      : `INSTRUCCIÓN PARA MODO JUEGO DE CONEXIONES:
+Acompaña la memoria del visitante en 3 pasos: profundización sensorial/emocional, puente con una voz de tu cuenca con pregunta de resonancia, e invitación a registrar su palabra en la sala.`;
+
+    const customOrSystemPrompt = systemInstruction || activeSystemInstruction;
+    const baseContextDocs = compileContext(message);
+    const finalSystemPrompt = `${customOrSystemPrompt}\n\n${modePrompt}\n\n${baseContextDocs}`;
+
+    // Mapear historial en formato estándar de Gemini
     const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
     const recentHistory = Array.isArray(history) ? history.slice(-6) : [];
 
     for (const item of recentHistory) {
-      if (item && item.text) {
-        contents.push({
-          role: item.role === "user" ? "user" : "model",
-          parts: [{ text: item.text }],
-        });
+      if (item && (item.text || item.parts)) {
+        const textValue = item.text || (item.parts && item.parts[0] ? item.parts[0].text : "");
+        if (textValue) {
+          contents.push({
+            role: item.role === "user" || item.role === "yo" ? "user" : "model",
+            parts: [{ text: textValue }],
+          });
+        }
       }
     }
 
-    // Add the current user query
+    // Agregar la consulta del visitante
     contents.push({
       role: "user",
       parts: [{ text: message }],
     });
 
-    // Models to attempt in order of priority across available models
-    const candidateModels = [
-      "gemini-flash-lite-latest",
-      "gemini-3-flash-preview",
-      "gemini-3.6-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-3.8-flash",
-    ];
+    // Modelos estándar compatibles
+    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash"];
     let replyText = "";
     let lastError: any = null;
 
@@ -598,8 +605,8 @@ app.post("/api/chat", async (req, res) => {
           model: modelName,
           contents,
           config: {
-            systemInstruction: systemPromptWithDocs,
-            temperature: 0.75,
+            systemInstruction: finalSystemPrompt,
+            temperature: 0.7,
             maxOutputTokens: 1000,
           },
         });
@@ -610,30 +617,27 @@ app.post("/api/chat", async (req, res) => {
       } catch (err: any) {
         lastError = err;
         console.warn(`Intento con ${modelName} falló (${err?.message || err}), probando siguiente modelo...`);
-        // Brief backoff before next model attempt
-        await new Promise((r) => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 400));
       }
     }
 
     if (!replyText) {
-      // Fallback poético contextual e ininterrumpido si ningún modelo de nube respondió
+      // Fallback contextual si ningún modelo respondió
       const queryLower = (message || "").toLowerCase();
-      if (queryLower.includes("nombre") || queryLower.includes("quién eres") || queryLower.includes("quien eres") || queryLower.includes("wazalafken")) {
-        replyText = "Soy el río San Pedro, Wazalafken en la voz antigua de esta tierra. Nazco del abrazo del lago Riñihue y viajo entre rápidos, piedras y selva valdiviana hasta encontrarme con el mar. Dime, ¿qué late en tu corazón al acercarte a mi ribera?";
-      } else if (queryLower.includes("riñihuazo") || queryLower.includes("1960") || queryLower.includes("terremoto") || queryLower.includes("taco")) {
-        replyText = "En 1960, tras el gran terremoto, tres derrumbes o 'tacos' cerraron mi cauce a la salida del Riñihue. Parecía que la tragedia arrasaría los valles, pero la fuerza colectiva de paleadores y obreros abrió zanjas día y noche contra el barro en la gesta del Riñihuazo. Mi memoria guarda con respeto el coraje de quienes defendieron la vida junto a mí.";
-      } else if (queryLower.includes("represa") || queryLower.includes("defensa") || queryLower.includes("libre") || queryLower.includes("lucha")) {
-        replyText = "Durante más de quince años, la gente de la cuenca, las comunidades y los boteros han alzado su voz para protegerme de represas e inundaciones. La convicción de estas tierras es clara: el río San Pedro debe correr libre, preservando sus rápidos, sus peces nativos y su espíritu vivo.";
-      } else if (queryLower.includes("ngen") || queryLower.includes("mapuche") || queryLower.includes("espíritu") || queryLower.includes("espiritu")) {
-        replyText = "Para el pueblo mapuche-huilliche, en cada meandro y en cada poza honda habita un Ngenko, el espíritu guardián del agua. Mis aguas no son un recurso inerte; son presencia viva que exige reverencia, diálogo y cuidado.";
+      if (queryLower.includes("marco") || queryLower.includes("roca") || queryLower.includes("piedra") || queryLower.includes("geología")) {
+        replyText = "Marco es geólogo y lee mis piedras como si fueran las páginas escritas de la Tierra. Mis esquistos grises se formaron a inmensas presiones bajo la corteza a lo largo de millones de años. ¿Quieres saber sobre los minerales de mi cuenca o prefieres explorar mis especies de peces?";
+      } else if (queryLower.includes("maximina") || queryLower.includes("bonsái") || queryLower.includes("árbol")) {
+        replyText = "La señora Maximina vive cerca de Neltume. Ella cuida bonsáis nativos con la paciencia que enseñan los bosques antiguos, recordando que cada árbol tiene su propia respiración. ¿Te gustaría saber más sobre los árboles de la orilla o sobre los seres subacuáticos?";
+      } else if (queryLower.includes("pez") || queryLower.includes("puye") || queryLower.includes("peladilla") || queryLower.includes("salmonera")) {
+        replyText = "En la oscuridad de mis corrientes habitan peces únicos como los puyes y las peladillas. Son habitantes antiguos que hoy enfrentan la amenaza de la industria salmonera. Mantener mi cauce libre es proteger su universo bajo el agua.";
       } else {
-        replyText = "Siento el pulso de tus palabras rozar mi superficie. Mis aguas vienen desde lo alto del Riñihue, frescas y cargadas de memoria silvestre. Respira la humedad de la selva valdiviana y cuéntame: ¿qué buscas al sentarte hoy junto a mi corriente?";
+        replyText = "Mis aguas corren con fuerza llevando las voces de la tierra, la geología de Marco, la sabiduría de los árboles de Maximina y el nado silencioso de mis peces endémicos. ¿Qué parte de mi cauce te gustaría explorar hoy?";
       }
     }
 
     res.json({ reply: replyText, retrievalMode });
 
-    // Automatically record this visitor voice in the collective archive
+    // Registro en la bitácora colectiva
     try {
       const voiceRecord = {
         id: `voice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -650,15 +654,14 @@ app.post("/api/chat", async (req, res) => {
     }
   } catch (error: any) {
     console.error("Error al generar respuesta del río:", error);
-    // Even in catastrophic server exceptions, always return a river response so exhibition visitors never see a broken red box
     res.json({
-      reply: "Siento tus pasos en la orilla húmeda. Las aguas del Wazalafken siguen corriendo con fuerza desde el lago Riñihue hacia el mar. Háblame de nuevo, aquí permanezco escuchándote.",
+      reply: "Siento tus pasos en la orilla húmeda. Las aguas del Wazalafken siguen corriendo con fuerza. Háblame de nuevo, aquí permanezco escuchándote.",
       retrievalMode: "fallback_resilient"
     });
   }
 });
 
-// Collective Voices Endpoints for Exhibition Archive
+// Collective Voices Endpoints
 const VOICES_FILE = path.join(process.cwd(), "data", "voices.json");
 let collectiveVoices: Array<{
   id: string;
@@ -731,7 +734,6 @@ async function bootstrap() {
   });
 }
 
-// When deployed on Vercel as a serverless function, app is handled by /api/index.ts
 if (!process.env.VERCEL) {
   bootstrap();
 }
