@@ -24,7 +24,7 @@ export function ExhibitionHeader({
   return (
     <header
       id="exhibition-main-header"
-      className={`sticky top-0 z-30 w-full transition-all border-b ${themeStyles.headerBg} ${themeStyles.headerBorder}`}
+      className="sticky top-0 z-30 w-full transition-all border-b bg-black/40 backdrop-blur-md border-white/15"
     >
       <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
         {/* Title / Identity */}
@@ -32,19 +32,19 @@ export function ExhibitionHeader({
           <img
             src={logoPuente}
             alt="Logo Ser Puente"
-            className="h-6 sm:h-7 w-auto object-contain shrink-0"
+            className="h-6 sm:h-7 w-auto object-contain shrink-0 brightness-0 invert"
           />
           <div>
             <div className="flex items-center gap-2">
               <h1
                 className={`text-[11px] tracking-widest uppercase font-normal ${
                   isSerif ? "font-serif" : "font-sans font-medium"
-                } ${themeStyles.textColor}`}
+                } text-white`}
               >
                 {aesthetics.title || "Ser Puente"}
               </h1>
             </div>
-            <p className={`text-[7px] font-light tracking-wide truncate max-w-[240px] sm:max-w-none ${themeStyles.textMuted}`}>
+            <p className="text-[7px] font-light tracking-wide truncate max-w-[240px] sm:max-w-none text-white/60">
               Obra de María Hurtado Izquierdo
             </p>
           </div>
@@ -61,14 +61,10 @@ export function ExhibitionHeader({
               id="reset-chat-button"
               onClick={onResetChat}
               type="button"
-              className={`p-2 sm:px-3 sm:py-1.5 rounded-full text-xs font-light transition-all flex items-center gap-1.5 border ${
-                themeStyles.isLight
-                  ? "bg-white/90 hover:bg-white text-[#2b3cdb] border-[#ded7c8] hover:border-[#2b3cdb]/50 shadow-xs"
-                  : "bg-stone-900/40 hover:bg-stone-800/60 text-[#2b3cdb] border-stone-800/80"
-              }`}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-full text-xs font-light transition-all flex items-center gap-1.5 border bg-white/10 hover:bg-white/20 text-white border-white/25 hover:border-white/50"
               title="Iniciar nuevo diálogo con el río"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-[#2b3cdb]" />
+              <RotateCcw className="w-3.5 h-3.5 text-white" />
               <span className="hidden sm:inline">Nueva conversación</span>
             </button>
           )}
@@ -78,14 +74,10 @@ export function ExhibitionHeader({
             id="open-curator-modal-btn"
             onClick={onOpenCurator}
             type="button"
-            className={`p-2 rounded-full border transition-all ${
-              themeStyles.isLight
-                ? "bg-white/90 hover:bg-white text-[#2b3cdb] border-[#ded7c8] hover:border-[#2b3cdb]/50 shadow-xs"
-                : "bg-stone-900/40 hover:bg-stone-800/70 text-[#2b3cdb] border-stone-800/80"
-            }`}
+            className="p-2 rounded-full border transition-all bg-white/10 hover:bg-white/20 text-white border-white/25 hover:border-white/50"
             title="Ajustes de la Instalación, Estética & Archivo de Voces"
           >
-            <Settings className="w-4 h-4 text-[#2b3cdb]" />
+            <Settings className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>

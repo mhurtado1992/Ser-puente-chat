@@ -146,11 +146,23 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col relative transition-colors duration-300 ${themeStyles.containerBg} ${themeStyles.textColor} ${
+      className={`min-h-screen flex flex-col relative transition-colors duration-300 bg-black text-white ${
         isSerif ? "font-serif" : "font-sans"
       }`}
     >
-      {/* Dynamic Background Water Animation */}
+      {/* Full-bleed background photograph of the río */}
+      <div
+        className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${riverPhoto})` }}
+        aria-hidden="true"
+      />
+      {/* Dark veil over the photo so text stays legible */}
+      <div
+        className="fixed inset-0 z-0 bg-gradient-to-b from-black/70 via-black/50 to-black/75"
+        aria-hidden="true"
+      />
+
+      {/* Dynamic Background Water Animation (subtle tint over the photo) */}
       <WaterVisualizer mode={aesthetics.waterAnimation} themeStyles={themeStyles} />
 
       {/* Main Header */}
@@ -167,37 +179,21 @@ export default function App() {
         {/* Welcome State / Gallery Entrance */}
         {messages.length === 0 && (
           <div className="flex-1 flex flex-col justify-center my-auto py-6 sm:py-12 space-y-6 sm:space-y-8 animate-fade-in">
-            {/* Intro layout: text on the left, photograph adjusted to the right */}
-            <div className="w-full flex flex-col md:flex-row items-center md:items-start justify-between gap-6 sm:gap-8">
-              {/* Text block */}
-              <div className="flex-1 space-y-3 sm:space-y-4 text-left">
-                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#2b3cdb] block">
-                  Instalación Sonora & Dialógica
-                </span>
-                <h2
-                  className={`text-[21px] tracking-wide font-light leading-snug ${
-                    isSerif ? "font-serif" : "font-sans font-normal"
-                  } text-[#2b3cdb]`}
-                >
-                  Habla con el Río San Pedro
-                </h2>
-                <p className="text-[10px] leading-[15.75px] italic font-light text-[#2b3cdb]">
-                  "Mis aguas nacen en el lago Riñihue y viajan llevando la memoria del Riñihuazo, las voces de las comunidades ribereñas, las piedras y los rápidos que defienden mi curso libre. Siéntate a mi orilla... ¿qué deseas saber?"
-                </p>
-              </div>
-
-              {/* Photo adjusted to the right */}
-              <div className="w-full sm:w-72 md:w-64 lg:w-72 shrink-0 self-center md:self-start flex flex-col items-end">
-                <div className="relative group w-full overflow-hidden">
-                  <img
-                    src={riverPhoto}
-                    alt="Río San Pedro"
-                    referrerPolicy="no-referrer"
-                    className="w-full aspect-[4/3] object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#2b3cdb]/20 via-transparent to-transparent pointer-events-none" />
-                </div>
-              </div>
+            {/* Intro layout: centered text over the full-bleed photo */}
+            <div className="w-full flex flex-col items-center text-center gap-3 sm:gap-4 max-w-xl mx-auto">
+              <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/70 block">
+                Instalación Sonora & Dialógica
+              </span>
+              <h2
+                className={`text-2xl sm:text-3xl tracking-wide font-light leading-snug ${
+                  isSerif ? "font-serif" : "font-sans font-normal"
+                } text-white`}
+              >
+                Habla con el Río San Pedro
+              </h2>
+              <p className="text-sm leading-relaxed italic font-light text-white/85 max-w-md">
+                "Mis aguas nacen en el lago Riñihue y viajan llevando la memoria del Riñihuazo, las voces de las comunidades ribereñas, las piedras y los rápidos que defienden mi curso libre. Siéntate a mi orilla... ¿qué deseas saber?"
+              </p>
             </div>
 
             {/* Suggestion Starter Buttons (Google-style) */}
@@ -208,19 +204,19 @@ export default function App() {
                   id="btn-start-connections-game"
                   type="button"
                   onClick={handleStartConnectionsGame}
-                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-white hover:bg-blue-50/40 border-[#e6dfd1] hover:border-[#2b3cdb] text-[#2b3cdb]"
+                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-black/40 backdrop-blur-md hover:bg-black/55 border-white/25 hover:border-white/60 text-white"
                 >
                   <div className="flex items-center justify-between w-full">
-                    <span className="w-9 h-9 rounded-xl bg-[#2b3cdb]/15 text-[#2b3cdb] flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <span className="w-9 h-9 rounded-xl bg-white/15 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Sparkles className="w-4 h-4" />
                     </span>
-                    <span className="text-[10px] font-mono tracking-wider uppercase text-[#2b3cdb] font-medium px-2 py-0.5 rounded-full bg-[#2b3cdb]/10 border border-[#2b3cdb]/30">
+                    <span className="text-[10px] font-mono tracking-wider uppercase text-white font-medium px-2 py-0.5 rounded-full bg-white/10 border border-white/30">
                       Paso a paso
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold tracking-tight text-[#2b3cdb]">El juego de las conexiones</h3>
-                    <p className="text-xs mt-1 leading-snug text-[#2b3cdb]/80">
+                    <h3 className="text-sm font-semibold tracking-tight text-white">El juego de las conexiones</h3>
+                    <p className="text-xs mt-1 leading-snug text-white/75">
                       Comparte un recuerdo con el agua y descubre qué historia te responde.
                     </p>
                   </div>
@@ -231,19 +227,19 @@ export default function App() {
                   id="btn-start-explore-voices"
                   type="button"
                   onClick={handleStartExploreVoices}
-                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-white hover:bg-blue-50/40 border-[#e6dfd1] hover:border-[#2b3cdb] text-[#2b3cdb]"
+                  className="group relative p-4 rounded-2xl border text-left transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between gap-3 bg-black/40 backdrop-blur-md hover:bg-black/55 border-white/25 hover:border-white/60 text-white"
                 >
                   <div className="flex items-center justify-between w-full">
-                    <span className="w-9 h-9 rounded-xl bg-[#2b3cdb]/15 text-[#2b3cdb] flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <span className="w-9 h-9 rounded-xl bg-white/15 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Waves className="w-4 h-4" />
                     </span>
-                    <span className="text-[10px] font-mono tracking-wider uppercase text-[#2b3cdb] font-medium px-2 py-0.5 rounded-full bg-[#2b3cdb]/10 border border-[#2b3cdb]/30">
+                    <span className="text-[10px] font-mono tracking-wider uppercase text-white font-medium px-2 py-0.5 rounded-full bg-white/10 border border-white/30">
                       Diálogo libre
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold tracking-tight text-[#2b3cdb]">Explora las voces del río</h3>
-                    <p className="text-xs mt-1 leading-snug text-[#2b3cdb]/80">
+                    <h3 className="text-sm font-semibold tracking-tight text-white">Explora las voces del río</h3>
+                    <p className="text-xs mt-1 leading-snug text-white/75">
                       Conversa libremente sobre testimonios reales, historia y el cauce libre.
                     </p>
                   </div>
@@ -297,7 +293,7 @@ export default function App() {
 
       {/* Sticky Bottom Input Bar */}
       <footer
-        className={`sticky bottom-0 z-30 w-full backdrop-blur-lg border-t pb-safe transition-colors ${themeStyles.inputContainerBg}`}
+        className="sticky bottom-0 z-30 w-full backdrop-blur-lg border-t pb-safe transition-colors bg-black/50 border-white/15"
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <form
@@ -305,7 +301,7 @@ export default function App() {
               e.preventDefault();
               handleSendMessage();
             }}
-            className={`relative flex items-end gap-2 border focus-within:ring-2 focus-within:ring-[#2b3cdb]/50 rounded-2xl p-2 transition-all shadow-lg ${themeStyles.inputBg} ${themeStyles.inputBorder}`}
+            className="relative flex items-end gap-2 border focus-within:ring-2 focus-within:ring-white/40 rounded-2xl p-2 transition-all shadow-lg bg-black/40 border-white/25"
           >
             <textarea
               id="visitor-chat-textarea"
@@ -316,14 +312,14 @@ export default function App() {
               placeholder="Habla con el río San Pedro..."
               rows={1}
               disabled={isLoading}
-              className="flex-1 bg-transparent text-sm sm:text-base px-3 py-1.5 resize-none focus:outline-none min-h-[38px] max-h-[120px] text-[#2b3cdb] placeholder-[#2b3cdb]/50"
+              className="flex-1 bg-transparent text-sm sm:text-base px-3 py-1.5 resize-none focus:outline-none min-h-[38px] max-h-[120px] text-white placeholder-white/50"
             />
 
             <button
               id="send-message-btn"
               type="submit"
               disabled={isLoading || !inputValue.trim()}
-              className="p-2.5 rounded-xl bg-[#2b3cdb] hover:bg-[#2231bd] disabled:opacity-30 disabled:hover:bg-[#2b3cdb] text-white transition-all shadow-md shadow-[#2b3cdb]/30 flex-shrink-0"
+              className="p-2.5 rounded-xl bg-white hover:bg-white/85 disabled:opacity-30 disabled:hover:bg-white text-black transition-all shadow-md shadow-black/30 flex-shrink-0"
               title="Enviar mensaje al río"
             >
               <Send className="w-4 h-4" />
@@ -331,7 +327,7 @@ export default function App() {
           </form>
 
           <div
-            className="flex items-center justify-between mt-2 px-1 text-[8px] text-[#2b3cdb]/70 font-light"
+            className="flex items-center justify-between mt-2 px-1 text-[8px] text-white/60 font-light"
           >
             <span>Valdivia, Chile - 2026</span>
             <span>Presiona Enter para enviar</span>
