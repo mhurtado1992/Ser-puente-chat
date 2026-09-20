@@ -595,7 +595,7 @@ Acompaña la memoria del visitante en 3 pasos: profundización sensorial/emocion
     });
 
     // Modelos estándar compatibles
-    const candidateModels = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-1.5-flash"];
+    const candidateModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
     let replyText = "";
     let lastError: any = null;
 
