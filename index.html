@@ -94,7 +94,8 @@
         </div>
       </div>
 
-      <img id="rio" class="hero" src="./img_8014-mu91h1v8-gios.jpg" alt="El río San Pedro">
+      <!-- Ruta corregida a la carpeta public -->
+      <img id="rio" class="hero" src="/rio.jpg" alt="El río San Pedro">
 
       <div id="voces" class="cells">
         <button type="button" class="cell" data-mode="guiado">
@@ -130,19 +131,26 @@
 
     <form class="composer" id="composer">
       <input id="field" type="text" placeholder="HABLA CON EL RÍO SAN PEDRO…" aria-label="Habla con el río San Pedro">
-      <button type="submit">ENVIAR</button>
+      <button type="button" id="sendBtn">ENVIAR</button>
     </form>
   </div>
   <div style="height:clamp(0px,3vw,46px);"></div>
 </div>
 
-<script>
-const RESPUESTAS = [
-  "Nazco en el lago Riñihue y corro libre 137 kilómetros hasta juntarme con el Calle Calle. En 1960, después del terremoto, mi salida quedó tapada por los derrumbes: eso fue el Riñihuazo. Miles de personas cavaron a mano para abrirme paso otra vez.",
-  "Las comunidades ribereñas me nombran Wazalafken. Sus mayores recuerdan cuando se cruzaba en bote para ir a la escuela, y cuando el agua se bebía sin miedo.",
-  "Mis rápidos —el Cachiyuyo, el Malihue— son los que defienden mi curso. Donde el agua corre rápido, la vida se sostiene: hay peces, hay piedras vivas, hay sonido.",
-  "Todo lo que me cuentas baja conmigo. Lo que pasa en la montaña llega al mar. Esa es la red de la que hablo: nada en mí ocurre solo."
-];
+<script type="importmap">
+  {
+    "imports": {
+      "@google/genai": "https://esm.run/@google/genai"
+    }
+  }
+</script>
+
+<script type="module">
+import { GoogleGenAI } from '@google/genai';
+
+// Inicializa el cliente de Gemini (usa automáticamente la API Key configurada en AI Studio)
+const ai = new GoogleGenAI();
+
 const SUGERENCIAS = {
   guiado: [["UN RECUERDO DE LLUVIA","Recuerdo la lluvia golpeando el techo de zinc de mi abuela."],
            ["UN CRUCE EN BOTE","Crucé el río en bote una vez, siendo niña."],
@@ -151,50 +159,131 @@ const SUGERENCIAS = {
            ["LAS COMUNIDADES","¿Quiénes viven en tus márgenes?"],
            ["EL CAUCE LIBRE","¿Por qué importa que tu cauce siga libre?"]]
 };
+
 const home = document.getElementById('home'), chat = document.getElementById('chat');
 const thread = document.getElementById('thread'), suggest = document.getElementById('suggest');
-const field = document.getElementById('field'); let modo = 'libre', nRio = 0;
+const field = document.getElementById('field'); 
+const sendBtn = document.getElementById('sendBtn');
+const composer = document.getElementById('composer');
+
+let modo = 'libre'; 
+let history = [];
 
 function add(who, text){
   const el = document.createElement('div');
   el.className = 'msg ' + (who === 'rio' ? 'rio' : 'yo');
   el.innerHTML = '<span class="who">' + (who === 'rio' ? 'EL RÍO' : 'TÚ') + '</span><p></p>';
   el.querySelector('p').textContent = text;
-  thread.appendChild(el); thread.scrollTop = thread.scrollHeight;
-  if (who === 'rio') nRio++;
+  thread.appendChild(el); 
+  thread.scrollTop = thread.scrollHeight;
 }
+
 function typing(on){
   let t = document.getElementById('typing');
-  if (on && !t){ t = document.createElement('div'); t.id='typing'; t.className='typing';
-    t.innerHTML = '<span>EL RÍO</span><span>ESCRIBIENDO ···</span>'; thread.appendChild(t); thread.scrollTop = thread.scrollHeight; }
+  if (on && !t){ 
+    t = document.createElement('div'); 
+    t.id='typing'; 
+    t.className='typing';
+    t.innerHTML = '<span>EL RÍO</span><span>ESCRIBIENDO ···</span>'; 
+    thread.appendChild(t); 
+    thread.scrollTop = thread.scrollHeight; 
+  }
   if (!on && t) t.remove();
 }
+
 function pintarSugerencias(){
   suggest.innerHTML = '';
   SUGERENCIAS[modo].forEach(([label, text]) => {
-    const b = document.createElement('button'); b.type='button'; b.className='ghost'; b.textContent=label;
-    b.onclick = () => enviar(text); suggest.appendChild(b);
+    const b = document.createElement('button'); 
+    b.type='button'; 
+    b.className='ghost'; 
+    b.textContent=label;
+    b.onclick = () => enviar(text); 
+    suggest.appendChild(b);
   });
 }
+
 function entrar(m, primerTexto){
-  modo = m; nRio = 0; thread.innerHTML = '';
+  modo = m; 
+  history = [];
+  thread.innerHTML = '';
   document.getElementById('modeLabel').textContent = m === 'guiado' ? 'PASO A PASO / EL JUEGO DE LAS CONEXIONES' : 'DIÁLOGO LIBRE';
-  add('rio', m === 'guiado'
+  
+  const saludoInicial = m === 'guiado'
     ? 'Bienvenida al juego de las conexiones. Dime un recuerdo tuyo con el agua: una vez que te mojaste los pies, una lluvia, un cruce. Yo te devuelvo una historia de mi cauce.'
-    : 'Siéntate a mi orilla. Puedes preguntarme por mi nacimiento, por el Riñihuazo, por las comunidades que viven en mis márgenes… ¿qué deseas saber?');
+    : 'Siéntate a mi orilla. Puedes preguntarme por mi nacimiento, por el Riñihuazo, por las comunidades que viven en mis márgenes… ¿qué deseas saber?';
+    
+  add('rio', saludoInicial);
   pintarSugerencias();
-  home.hidden = true; chat.hidden = false;
+  home.hidden = true; 
+  chat.hidden = false;
   if (primerTexto) enviar(primerTexto);
 }
-function enviar(texto){
-  const t = (texto || '').trim(); if (!t) return;
-  if (!home.hidden) { entrar('libre', t); return; }
-  add('yo', t); field.value = ''; typing(true);
-  setTimeout(() => { typing(false); add('rio', RESPUESTAS[nRio % RESPUESTAS.length]); }, 1400);
+
+async function consultarGemini(mensajeUsuario) {
+  try {
+    const systemInstruction = "Eres las voces del río San Pedro (Wazalafken) en la obra 'Ser Puente'. Responde a los visitantes como si fueras el río en sí mismo. Mantén un tono poético, evocador, conciso y profundo (máximo 2 párrafos cortos). Habla sobre la memoria del agua, el Riñihuazo, la conexión entre la naturaleza y las comunidades, y el flujo libre de tus aguas.";
+    
+    // Llamada con Gemini 2.5 Flash
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        ...history,
+        { role: 'user', parts: [{ text: mensajeUsuario }] }
+      ],
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.7
+      }
+    });
+
+    const respuestaTexto = response.text || "Las aguas murmuran en silencio... intenta preguntarme nuevamente.";
+    
+    // Guardar en el historial de conversación
+    history.push({ role: 'user', parts: [{ text: mensajeUsuario }] });
+    history.push({ role: 'model', parts: [{ text: respuestaTexto }] });
+
+    return respuestaTexto;
+
+  } catch (error) {
+    console.error("Error al consultar la API de Gemini:", error);
+    return "Mis aguas atraviesan un momento de calma. Intenta hacerme tu pregunta de nuevo en un instante.";
+  }
 }
+
+async function enviar(texto){
+  const t = (texto || field.value || '').trim(); 
+  if (!t) return;
+  
+  if (!home.hidden) { 
+    entrar('libre', t); 
+    return; 
+  }
+  
+  add('yo', t); 
+  field.value = ''; 
+  typing(true);
+
+  // Consulta en tiempo real a la API
+  const respuesta = await consultarGemini(t);
+  
+  typing(false);
+  add('rio', respuesta);
+}
+
+// Controlar eventos para evitar la recarga por defecto de la página
+composer.addEventListener('submit', (e) => {
+  e.preventDefault();
+  enviar();
+});
+
+sendBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  enviar();
+});
+
 document.querySelectorAll('.cell').forEach(c => c.onclick = () => entrar(c.dataset.mode));
 document.getElementById('back').onclick = () => { chat.hidden = true; home.hidden = false; };
-document.getElementById('composer').onsubmit = e => { e.preventDefault(); enviar(field.value); };
 </script>
 </body>
 </html>
