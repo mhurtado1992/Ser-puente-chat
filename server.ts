@@ -595,7 +595,7 @@ Acompaña la memoria del visitante en 3 pasos: profundización sensorial/emocion
     });
 
     // Modelos estándar compatibles
-    const candidateModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
     let replyText = "";
     let lastError: any = null;
 
@@ -604,11 +604,14 @@ Acompaña la memoria del visitante en 3 pasos: profundización sensorial/emocion
         const response = await ai.models.generateContent({
           model: modelName,
           contents,
-          config: {
-            systemInstruction: finalSystemPrompt,
-            temperature: 0.7,
-            maxOutputTokens: 1000,
+         config: {
+          systemInstruction: finalSystemPrompt,
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+          thinkingConfig: {
+            thinkingLevel: 'low',
           },
+        },
         });
         if (response.text) {
           replyText = response.text;
