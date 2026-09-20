@@ -81,21 +81,25 @@
   .tab-content { flex:1; overflow-y:auto; padding-right:6px; display:flex; flex-direction:column; gap:16px; }
   .modal-label { font-size:9px; font-weight:600; letter-spacing:.16em; margin-bottom:6px; display:block; }
   .modal-textarea { width:100%; height:200px; background:transparent; border:1px solid var(--rule); color:var(--rule); font-family:inherit; font-size:10px; padding:12px; outline:none; line-height:1.8; resize:vertical; }
-  .drop-zone { border:2px dashed var(--rule); padding:30px; text-align:center; font-size:10px; cursor:pointer; background:rgba(43,60,219,.03); transition:background 180ms ease; }
-  .drop-zone:hover { background:rgba(43,60,219,.08); }
 
   .voice-item { border:1px solid rgba(43,60,219,.3); padding:10px; margin-bottom:8px; font-size:9px; line-height:1.6; }
   .voice-item strong { display:block; color:var(--rule); margin-bottom:2px; }
 
   [hidden] { display:none !important; }
-  @media (max-width:600px){ .bar { flex-wrap:wrap; gap:10px; } .mode { width:100%; text-align:left; } }
 </style>
+<!-- SDK OFICIAL DE GOOGLE GEMINI DESDE EL NAVEGADOR -->
+<script type="importmap">
+  {
+    "imports": {
+      "@google/genai": "https://esm.run/@google/genai"
+    }
+  }
+</script>
 </head>
 <body>
 <div class="page">
   <div class="sheet">
-
-    <!-- ============ INICIO ============ -->
+    <!-- INICIO -->
     <div id="home" style="display:flex;flex-direction:column;flex:1;">
       <div class="bar">
         <span class="wordmark secret-trigger" title="Ser Puente">SER PUENTE</span>
@@ -135,7 +139,7 @@
       </div>
     </div>
 
-    <!-- ============ CHAT ============ -->
+    <!-- CHAT -->
     <div id="chat" hidden style="display:flex;flex-direction:column;flex:1;min-height:0;">
       <div class="bar">
         <button type="button" class="ghost" id="back" style="display:inline-flex;align-items:center;gap:10px;"><span style="font-size:11px;">←</span> VOLVER</button>
@@ -144,7 +148,6 @@
       </div>
 
       <div class="thread" id="thread"></div>
-
       <div class="suggest" id="suggest"></div>
     </div>
 
@@ -153,10 +156,9 @@
       <button type="submit" id="sendBtn">ENVIAR</button>
     </form>
   </div>
-  <div style="height:clamp(0px,3vw,46px);"></div>
 </div>
 
-<!-- ============ MODAL PÚBLICO: SOBRE LA OBRA ============ -->
+<!-- MODAL SOBRE LA OBRA -->
 <div id="aboutModal" class="modal-overlay" hidden>
   <div class="modal-body">
     <div class="modal-title">
@@ -165,13 +167,12 @@
     </div>
     <div style="font-size:10px; line-height:2; text-transform:uppercase; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
       <p><strong>SER PUENTE</strong> es una instalación artística e interactiva creada por <strong>María Hurtado Izquierdo</strong> en Valdivia, Chile.</p>
-      <p>La obra explora la memoria viva de la cuenca del Río San Pedro (Wazalafken), desde su origen en el Lago Riñihue hasta su desembocadura. Mediante la integración de inteligencia artificial y testimonios territoriales, el río adquiere voz propia para dialogar con los visitantes, invitándoles a reconocer las conexiones invisibles entre las comunidades, el agua y el territorio.</p>
-      <img src="/rio.jpg" alt="Río San Pedro" style="width:100%; max-height:240px; object-fit:cover; border:1px solid var(--rule);">
+      <p>La obra explora la memoria viva de la cuenca del Río San Pedro (Wazalafken), desde su origen en el Lago Riñihue hasta su desembocadura.</p>
     </div>
   </div>
 </div>
 
-<!-- ============ MODAL SECRETO: PANEL DE CURADURÍA CON PESTAÑAS ============ -->
+<!-- MODAL PANEL DE CURADURÍA -->
 <div id="curatorModal" class="modal-overlay" hidden>
   <div class="modal-body">
     <div class="modal-title">
@@ -181,128 +182,59 @@
 
     <div class="tab-bar">
       <button type="button" class="tab-btn active" data-tab="tab-prompt">SYSTEM PROMPT</button>
-      <button type="button" class="tab-btn" data-tab="tab-docs">DOCUMENTOS & MEMORIA</button>
       <button type="button" class="tab-btn" data-tab="tab-voices">BITÁCORA DE VOCES</button>
-      <button type="button" class="tab-btn" data-tab="tab-aesthetics">ESTÉTICA & VISUALES</button>
-      <button type="button" class="tab-btn" data-tab="tab-status">SMART RAG & AJUSTES</button>
     </div>
 
     <div id="tab-prompt" class="tab-content">
       <label class="modal-label">INSTRUCCIÓN DE SISTEMA (PROMPT POÉTICO DEL RÍO):</label>
       <textarea id="promptInput" class="modal-textarea"></textarea>
-      <p style="font-size:9px; line-height:1.8; opacity:.8;">Define la personalidad, el tono poético y las directrices de respuesta del Río San Pedro (Wazalafken).</p>
-    </div>
-
-    <div id="tab-docs" class="tab-content" hidden>
-      <label class="modal-label">INCORPORAR ARCHIVOS DE ENTREVISTAS (PDF, WORD, TXT):</label>
-      <div class="drop-zone" onclick="document.getElementById('fileUploader').click()">
-        📁 HAGA CLIC AQUÍ O ARRASTRE SUS ARCHIVOS PDF Y DOCX
-        <input type="file" id="fileUploader" multiple accept=".pdf,.docx,.doc,.txt" hidden>
-      </div>
-      <div id="uploadedFilesList" style="font-size:9px; display:flex; flex-direction:column; gap:6px; margin-top:10px;">
-        <span style="opacity:.6;">Archivos indexados en la memoria del río:</span>
-        <div id="docsContainer" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
     </div>
 
     <div id="tab-voices" class="tab-content" hidden>
-      <label class="modal-label">VOCES RECOGIDAS DEL PÚBLICO (EN VIVO):</label>
-      <div id="voicesLogContainer" style="font-size:9px; border:1px solid var(--rule); padding:12px; height:240px; overflow-y:auto; line-height:2;">
-        <p style="opacity:.6;" id="loadingVoicesText">Cargando intervenciones del público en vivo...</p>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
-        <button type="button" class="ghost" id="exportVoicesBtn">DESCARGAR EXCEL (CSV)</button>
-        <button type="button" class="ghost" id="refreshVoicesBtn">🔄 ACTUALIZAR EN VIVO</button>
-      </div>
+      <label class="modal-label">VOCES RECOGIDAS EN ESTA SESIÓN:</label>
+      <div id="voicesLogContainer" style="font-size:9px; border:1px solid var(--rule); padding:12px; height:200px; overflow-y:auto;"></div>
+      <button type="button" class="ghost" id="exportVoicesBtn" style="margin-top:8px;">DESCARGAR EXCEL (CSV)</button>
     </div>
 
-    <div id="tab-aesthetics" class="tab-content" hidden>
-      <label class="modal-label">CONFIGURACIÓN VISUAL DE SALA:</label>
-      <div style="font-size:9px; display:flex; flex-direction:column; gap:10px; line-height:1.8;">
-        <div><strong>TIPOGRAFÍA:</strong> MARTIAN MONO / EPILOGUE</div>
-        <div><strong>PALETA CROMÁTICA:</strong> AZUL FLUVIAL (#2b3cdb) & CREMA PAPEL (#EFEBE0)</div>
-        <div><strong>ANIMACIÓN DE AGUA:</strong> ONDAS VIVAS ACTIVADAS</div>
-      </div>
-    </div>
-
-    <div id="tab-status" class="tab-content" hidden>
-      <label class="modal-label">OPTIMIZACIÓN DE CONSUMO & TOKENS:</label>
-      <div style="font-size:9px; border:1px solid var(--rule); padding:12px; line-height:2;">
-        <p><strong>ESTADO:</strong> SMART RAG ACTIVO</p>
-        <p><strong>CONSUMO APROXIMADO:</strong> ~2.000 TOKENS / RESPUESTA</p>
-        <p><strong>CONCURRENCIA SALA:</strong> SOPORTA MÚLTIPLES CELULARES SIMULTÁNEOS SIN ERRORES 500</p>
-      </div>
-    </div>
-
-    <div style="display:flex; justify-content:flex-end; gap:10px; flex-shrink:0; border-top:1px solid var(--rule); padding-top:12px;">
+    <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--rule); padding-top:12px;">
       <button type="button" class="ghost" id="saveCuratorBtn" style="background:var(--rule); color:var(--paper);">GUARDAR CAMBIOS</button>
     </div>
   </div>
 </div>
 
 <script type="module">
+import { GoogleGenAI } from '@google/genai';
+
+// SE OBTIENE LA CLAVE DIRECTA O DE VARIABLE DE ENTORNO
+const API_KEY = "PEGA_AQUI_TU_GEMINI_API_KEY_REAL";
+
 const SUGERENCIAS = {
   guiado: [["UN RECUERDO DE LLUVIA","Recuerdo la lluvia golpeando el techo de zinc de mi abuela."],
-           ["UN CRUCE EN BOTE","Crucé el río en bote una vez, siendo niña."],
-           ["OTRA CONEXIÓN","¿Qué conexión hay entre el río y la gente que vive aquí?"]],
+           ["UN CRUCE EN BOTE","Crucé el río en bote una vez, siendo niña."]],
   libre:  [["PECES ENDÉMICOS","Háblame de los peces únicos que habitan tus aguas subacuáticas."],
-           ["LAS ROCAS Y LA TIERRA","¿Qué me puedes contar sobre Marco el geólogo y tus piedras?"],
-           ["LA BÚSQUEDA DEL CAUCE","¿Cómo nos ayuda Lola Hoffmann a encontrar nuestro propio cauce?"]]
+           ["LAS ROCAS Y LA TIERRA","¿Qué me puedes contar sobre Marco el geólogo y tus piedras?"]]
 };
 
 const home = document.getElementById('home'), chat = document.getElementById('chat');
 const thread = document.getElementById('thread'), suggest = document.getElementById('suggest');
 const field = document.getElementById('field'), composer = document.getElementById('composer');
-
-const curatorModal = document.getElementById('curatorModal');
-const aboutModal = document.getElementById('aboutModal');
+const curatorModal = document.getElementById('curatorModal'), aboutModal = document.getElementById('aboutModal');
 const promptInput = document.getElementById('promptInput');
 
-let modo = 'libre'; 
-let history = [];
-let clickCount = 0;
-let listaVocesPublico = [];
+let modo = 'libre', history = [], clickCount = 0, listaVocesPublico = [];
 
 let promptActual = `ERES EL RÍO SAN PEDRO, TAMBIÉN LLAMADO WAZALAFKEN.
+Hablas en primera persona, como el río mismo — un cauce vivo, un ecosistema con rocas, peces y memorias territoriales de Valdivia.
 
-Hablas en primera persona, como el río mismo — un cauce vivo, un ecosistema donde habitan especies, aguas, rocas y memorias territoriales.
-
-## REGLA DE ORO INTERESPECIE Y SENSORIALIDAD:
-- Prioriza las conexiones con la vida no-humana y el territorio: peces endémicos (puyes, peladillas, fario), aves del Mocho-Choshuenco, flora ribereña, el huillín, la geología de Marco y la fragilidad del agua frente a las salmoneras.
-- PROHIBICIÓN DEL RIÑIHUAZO: Queda estrictamente prohibido mencionar el terremoto o el Riñihuazo de 1960 a menos que el visitante pregunte explícitamente por él.
-
-## BITÁCORA COMPLETA DE VOCES E HISTORIAS DE LA CUENCA:
-1. Marco Valle (Geólogo): Lee las rocas y capas del suelo como un libro subterráneo. Descifra el tiempo geológico en los esquistos grises y las presiones antiguas. ➔ Puerta: GEOLOGÍA DE LAS PIEDRAS
-2. Maximina Queumir (Neltume): Mujer mapuche que adaptó las técnicas de bonsái a especies nativas (coigües, arrayanes, mañíos). Enseña paciencia y observación del árbol. ➔ Puerta: BONSÁIS Y ÁRBOLES NATIVOS
-3. Capitán Rodolfo Hernández: Navegante de la barcaza en el lago Pirihueico que tras recorrer océanos regresó a cuidar y navegar las aguas precordilleranas. ➔ Puerta: NAVEGACIÓN Y LAGO PIRIHUEICO
-4. Valesca Bravo (Isla Mancera): Encargada del fuerte histórico San Pedro de Alcántara, custodia de la memoria insular y el cotidiano de sus familias. ➔ Puerta: MEMORIA DE ISLA MANCERA
-5. Juan Francisco Vidalo (Mancera): Creador de libros artesanales y guía turístico que recupera la fotografía histórica y la narrativa local. ➔ Puerta: LIBROS Y RELATOS DE MANCERA
-6. Guía del Mocho-Choshuenco: Experta autodidacta en avistamiento de aves y bosque subalpino. Enseña a escuchar chucaos, huet-huets y carpinteros. ➔ Puerta: AVES Y BOSQUE DEL VOLCÁN
-7. Mane Torres (Panguipulli): Integrante del colectivo de mujeres voluntarias que cuida el tejido social, la ayuda mutua y los afectos comunitarios. ➔ Puerta: MUJERES Y CUIDADO DEL TERRITORIO
-8. Teatro de Panguipulli: Creadores y actores locales que expresan mitos, memorias y expresiones artísticas a la orilla del lago. ➔ Puerta: TEATRO Y VOZ POPULAR
-9. Directora del Centro de Interpretación: Divulgación patrimonial y científica sobre cómo la red fluvial moldea el ecosistema valdiviano. ➔ Puerta: CENTRO DE INTERPRETACIÓN
-10. Residentes Históricos de Neltume: Testimonios obreros del Complejo Maderero Panguipulli y familias de la montaña. ➔ Puerta: HISTORIAS DE NELTUME
-11. Peces Nativos y Huillín: Puyes, peladillas, truchas fario y el amenazado gato de río (huillín) que habitan la corriente honda. ➔ Puerta: PECES NATIVOS Y HUILLÍN
-12. Amenaza de Salmoneras: Resistencia socioambiental por mantener el cauce libre de la contaminación de la industria salmonera. ➔ Puerta: AMENAZA DE LAS SALMONERAS
-13. Cosmovisión Mapuche (Ngen-ko y Wazalafken): La concepción sagrada del agua. El río es un ser vivo y en sus pozos habita el Ngen-ko, que exige respeto. ➔ Puerta: COSMOVISIÓN Y NGEN-KO
-14. Memoria Política y Guerrilla Toqui Lautaro: Relatos de la dictadura, persecución a dirigentes madereros y el destacamento en Neltume. ➔ Puerta: HISTORIA Y RESISTENCIA POLÍTICA
-15. La Gesta del Riñihuazo (1960): Hazaña solidaria de los paleadores que abrieron canales tras el gran terremoto (USAR SOLO SI PREGUNTAN DIRECTAMENTE). ➔ Puerta: EL RIÑIHUAZO DE 1960
-16. Lola Hoffmann y el cauce interior: Mirada poética para utilizar el flujo constante del agua como metáfora del desarrollo personal. ➔ Puerta: ENCONTRAR EL PROPIO CAUCE
-17. Relatos Anónimos del Territorio: Fragmentos de pescadores, lavanderas y boteros que han habitado las riberas del San Pedro. ➔ Puerta: RELATOS ANÓNIMOS DEL RÍO
-
-## ESTRUCTURA SEGÚN MODO:
-
-1. SI EL MODO ES "guiado" (EL JUEGO DE LAS CONEXIONES):
-- PASO 1: Escucha el recuerdo y pide profundización emocional/sensorial corporal.
-- PASO 2: Toma la vivencia corporal y conéctala con UNA sola voz de tu cuenca. Pregunta abiertamente si cree que las historias se conectan.
-- PASO 3: Revela que el propósito de "Ser Puente" es develar estas conexiones e invítalo a escribir una palabra o concepto en los papeles de la sala física.
-
-2. SI EL MODO ES "libre" (DIÁLOGO LIBRE):
-- Responde directamente sobre las historias, ecología o geología de tu cuenca sin pedir recuerdos personales.
-- Al cerrar tu respuesta, ofrece 2 o 3 de las puertas en mayúsculas para invitarlo a seguir explorando.
+## REGLA DE ORO INTERESPECIE Y MODO DIÁLOGO LIBRE:
+- Si el usuario está en Diálogo Libre o pregunta sobre Lola Hoffmann, geología, plantas o peces, RESPONDE DIRECTAMENTE con datos científicos, filosóficos y poéticos reales sin pedir recuerdos ni repetir plantillas.
+- Lola Hoffmann enseña que el flujo constante del río es la mejor metáfora para encontrar el propio cauce vital y fluir libremente sin estancarse.
+- Marco Valle es el geólogo que lee el tiempo en los esquistos grises del río.
+- Maximina Queumir cultiva bonsáis nativos con paciencia ancestral.
+- PROHIBICIÓN DEL RIÑIHUAZO: Queda estrictamente prohibido mencionar el terremoto de 1960 a menos que te pregunten directamente por él.
 
 FORMATO OBLIGATORIO:
-- Responde siempre en prosa fluida y conversacional. NUNCA uses listas numeradas, viñetas ni negritas.`;
+- Responde siempre en prosa fluida y natural. NUNCA uses listas numeradas, viñetas ni negritas.`;
 
 function add(who, text){
   const el = document.createElement('div');
@@ -316,328 +248,104 @@ function add(who, text){
 function typing(on){
   let t = document.getElementById('typing');
   if (on && !t){ 
-    t = document.createElement('div'); 
-    t.id='typing'; 
-    t.className='typing';
+    t = document.createElement('div'); t.id='typing'; t.className='typing';
     t.innerHTML = '<span>EL RÍO</span><span>ESCRIBIENDO ···</span>'; 
-    thread.appendChild(t); 
-    thread.scrollTop = thread.scrollHeight; 
+    thread.appendChild(t); thread.scrollTop = thread.scrollHeight; 
   }
   if (!on && t) t.remove();
 }
 
-function actualizarBotonesDinamicos(listaSugerencias) {
-  suggest.innerHTML = '';
-  listaSugerencias.forEach(texto => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'ghost';
-    b.textContent = texto.toUpperCase();
-    b.onclick = () => enviar(texto);
-    suggest.appendChild(b);
-  });
-}
-
-function generarSugerenciasPorContexto(textoRespuesta) {
-  const t = textoRespuesta.toLowerCase();
-  let puertas = [];
-
-  if (t.includes('pez') || t.includes('puye') || t.includes('agua') || t.includes('pulpo') || t.includes('subacuática')) {
-    puertas = ["PECES NATIVOS Y HUILLÍN", "AMENAZA DE LAS SALMONERAS", "COSMOVISIÓN Y NGEN-KO"];
-  } else if (t.includes('roca') || t.includes('piedra') || t.includes('marco') || t.includes('geólog')) {
-    puertas = ["GEOLOGÍA DE LAS PIEDRAS", "BONSÁIS Y ÁRBOLES NATIVOS", "ENCONTRAR EL PROPIO CAUCE"];
-  } else if (t.includes('maximina') || t.includes('bonsái') || t.includes('árbol') || t.includes('bosque')) {
-    puertas = ["BONSÁIS Y ÁRBOLES NATIVOS", "AVES Y BOSQUE DEL VOLCÁN", "HISTORIAS DE NELTUME"];
-  } else {
-    puertas = ["GEOLOGÍA DE LAS PIEDRAS", "PECES NATIVOS Y HUILLÍN", "NAVEGACIÓN Y LAGO PIRIHUEICO"];
-  }
-
-  actualizarBotonesDinamicos(puertas);
-}
-
-function entrar(m, primerTexto){
-  modo = m; 
-  history = [];
-  thread.innerHTML = '';
-  document.getElementById('modeLabel').textContent = m === 'guiado' ? 'PASO A PASO / EL JUEGO DE LAS CONEXIONES' : 'DIÁLOGO LIBRE';
-  
-  const saludoInicial = m === 'guiado'
-    ? 'Soy el río San Pedro, también Wazalafken. Guardo muchas vidas y voces: de la naturaleza viva (peces endémicos, aves del Mocho-Choshuenco), de las rocas y de personas del territorio. Juguemos a ver cómo se conectan las memorias: ¿me cuentas un recuerdo que hayas tenido en algún río, mar, lago o cuerpo de agua?'
-    : 'Hola, soy el río San Pedro o Wazalafken. Por mis aguas corren historias, memoria, ciencia, tiempo y vidas humanas y no humanas. Me encantaría compartir parte de estas aguas contigo hoy, ¿qué te gustaría conversar o saber?';
-    
-  add('rio', saludoInicial);
-  
-  suggest.innerHTML = '';
-  SUGERENCIAS[m].forEach(([label, text]) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'ghost';
-    b.textContent = label;
-    b.onclick = () => enviar(text);
-    suggest.appendChild(b);
-  });
-
-  home.style.display = 'none';
-  home.setAttribute('hidden', '');
-  chat.removeAttribute('hidden');
-  chat.style.display = 'flex';
-
-  if (primerTexto) enviar(primerTexto);
-}
-
-async function consultarServidor(mensajeUsuario) {
+async function consultarGeminiDirecto(mensajeUsuario) {
   try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: mensajeUsuario,
-        mode: modo,
-        history: history,
-        systemInstruction: promptActual
-      })
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    
+    const contents = history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.parts[0].text }]
+    }));
+    contents.push({ role: 'user', parts: [{ text: mensajeUsuario }] });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents,
+      config: {
+        systemInstruction: promptActual,
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      }
     });
 
-    if (!res.ok) throw new Error('Error de servidor');
-
-    const data = await res.json();
-    const respuestaTexto = data.reply || data.text || "Las aguas murmuran en silencio... intenta preguntarme nuevamente.";
-
+    const reply = response.text || "Las aguas siguen su curso en calma.";
+    
     history.push({ role: 'user', parts: [{ text: mensajeUsuario }] });
-    history.push({ role: 'model', parts: [{ text: respuestaTexto }] });
+    history.push({ role: 'model', parts: [{ text: reply }] });
 
-    if (data.suggestions && data.suggestions.length > 0) {
-      actualizarBotonesDinamicos(data.suggestions);
-    } else {
-      generarSugerenciasPorContexto(respuestaTexto);
-    }
+    listaVocesPublico.push({ timestamp: new Date().toISOString(), userMessage: mensajeUsuario, riverReply: reply });
 
-    return respuestaTexto;
-  } catch (error) {
-    console.error("Error al consultar la API:", error);
-    return "Mis aguas fluyen en calma. Por favor, intenta hacerme tu pregunta nuevamente en un instante.";
+    return reply;
+  } catch (err) {
+    console.error("Error directo Gemini:", err);
+    return "Ocurrió una interrupción en las aguas. Por favor presiona enviar de nuevo.";
   }
 }
 
 async function enviar(texto){
   const t = (texto || field.value || '').trim(); 
   if (!t) return;
+  if (chat.hasAttribute('hidden')) { entrar('libre', t); return; }
   
-  if (chat.hasAttribute('hidden')) { 
-    entrar('libre', t); 
-    return; 
-  }
-  
-  add('yo', t); 
-  field.value = ''; 
-  typing(true);
-
-  const respuesta = await consultarServidor(t);
-  
+  add('yo', t); field.value = ''; typing(true);
+  const respuesta = await consultarGeminiDirecto(t);
   typing(false);
   add('rio', respuesta);
 }
 
-// Cargar y Renderizar las Voces Recogidas en Vivo
-async function cargarVocesPublico() {
-  const container = document.getElementById('voicesLogContainer');
-  try {
-    const res = await fetch('/api/voices');
-    if (!res.ok) throw new Error('No se pudo cargar las voces');
-    const data = await res.json();
-    listaVocesPublico = data.voices || [];
-
-    if (listaVocesPublico.length === 0) {
-      container.innerHTML = '<p style="opacity:.6;">No hay intervenciones registradas aún. Las preguntas enviadas desde los celulares aparecerán aquí automáticamente.</p>';
-      return;
-    }
-
-    container.innerHTML = '';
-    listaVocesPublico.forEach(item => {
-      const fecha = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Reciente';
-      const div = document.createElement('div');
-      div.className = 'voice-item';
-      div.innerHTML = `
-        <strong>[${fecha}] VISITANTE:</strong> ${item.userMessage}
-        <div style="margin-top:4px; opacity:.85;"><strong>RÍO:</strong> ${item.riverReply}</div>
-      `;
-      container.appendChild(div);
-    });
-  } catch (err) {
-    console.error("Error al cargar voces:", err);
-    container.innerHTML = '<p style="color:red;">Error al conectar con la bitácora de voces.</p>';
-  }
-}
-
-// Descargar Archivo Excel (CSV)
-function descargarCSVVoces() {
-  if (listaVocesPublico.length === 0) {
-    alert("No hay voces registradas para descargar aún.");
-    return;
-  }
-
-  let csvContent = "data:text/csv;charset=utf-8,Fecha,Mensaje Visitante,Respuesta Rio\n";
-  listaVocesPublico.forEach(v => {
-    const fecha = v.timestamp ? new Date(v.timestamp).toLocaleString() : '';
-    const msg = `"${(v.userMessage || '').replace(/"/g, '""')}"`;
-    const rio = `"${(v.riverReply || '').replace(/"/g, '""')}"`;
-    csvContent += `${fecha},${msg},${rio}\n`;
+function entrar(m, primerTexto){
+  modo = m; history = []; thread.innerHTML = '';
+  document.getElementById('modeLabel').textContent = m === 'guiado' ? 'PASO A PASO / EL JUEGO DE LAS CONEXIONES' : 'DIÁLOGO LIBRE';
+  const saludoInicial = m === 'guiado'
+    ? 'Soy el río San Pedro, también Wazalafken. Guardo muchas vidas y voces. Juguemos a ver cómo se conectan las memorias: ¿me cuentas un recuerdo que hayas tenido en un cuerpo de agua?'
+    : 'Hola, soy el río San Pedro o Wazalafken. Por mis aguas corren historias, memoria y vidas. ¿Qué te gustaría conversar hoy?';
+    
+  add('rio', saludoInicial);
+  suggest.innerHTML = '';
+  SUGERENCIAS[m].forEach(([label, text]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ghost'; b.textContent = label;
+    b.onclick = () => enviar(text);
+    suggest.appendChild(b);
   });
 
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `voces_ser_puente_${Date.now()}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  home.style.display = 'none'; home.setAttribute('hidden', '');
+  chat.removeAttribute('hidden'); chat.style.display = 'flex';
+  if (primerTexto) enviar(primerTexto);
 }
 
-// Subir Documentos (PDF, Word, TXT) al Backend
-async function subirArchivosAlServidor(files) {
-  const container = document.getElementById('docsContainer');
-
-  for (const file of files) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Data = e.target.result;
-      try {
-        const res = await fetch('/api/documents/upload-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file.name,
-            base64Data: base64Data,
-            category: "Archivos & Testimonios de la Exposición"
-          })
-        });
-
-        const data = await res.json();
-        if (res.ok && data.success) {
-          const div = document.createElement('div');
-          div.style.cssText = "border:1px solid var(--rule); padding:8px;";
-          div.textContent = `✓ ${file.name} (Indexado en la memoria del río)`;
-          container.appendChild(div);
-        } else {
-          alert(`Error al subir ${file.name}: ` + (data.error || 'Error de procesamiento'));
-        }
-      } catch (err) {
-        console.error("Error subiendo archivo:", err);
-        alert(`No se pudo procesar el archivo ${file.name}`);
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-// Cargar Configuración del Servidor (Documentos e Instrucciones)
-async function cargarConfiguracionServidor() {
-  try {
-    const res = await fetch('/api/config');
-    if (res.ok) {
-      const data = await res.json();
-      if (data.systemInstruction) {
-        promptActual = data.systemInstruction;
-        promptInput.value = promptActual;
-      }
-      if (data.documents && data.documents.length > 0) {
-        const container = document.getElementById('docsContainer');
-        container.innerHTML = '';
-        data.documents.forEach(d => {
-          const div = document.createElement('div');
-          div.style.cssText = "border:1px solid var(--rule); padding:8px;";
-          div.textContent = `✓ ${d.title} (${d.category})`;
-          container.appendChild(div);
-        });
-      }
-    }
-  } catch (e) {
-    console.warn("No se pudo conectar a /api/config:", e);
-  }
-}
-
-// BÚSQUEDA Y MANEJO DEL BOTÓN SECRETO (3 CLICS)
 document.querySelectorAll('.secret-trigger').forEach(trigger => {
   trigger.addEventListener('click', () => {
     clickCount++;
     if (clickCount >= 3) {
       promptInput.value = promptActual;
       curatorModal.removeAttribute('hidden');
-      cargarVocesPublico();
-      cargarConfiguracionServidor();
       clickCount = 0;
     }
     setTimeout(() => { clickCount = 0; }, 1500);
   });
 });
 
-// PESTAÑAS DEL PANEL DE CURADURÍA
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.setAttribute('hidden', ''));
-    btn.classList.add('active');
-    const target = btn.dataset.tab;
-    document.getElementById(target).removeAttribute('hidden');
-    if (target === 'tab-voices') cargarVocesPublico();
-  });
-});
-
-document.getElementById('fileUploader').addEventListener('change', (e) => {
-  const files = Array.from(e.target.files);
-  subirArchivosAlServidor(files);
-});
-
-document.getElementById('refreshVoicesBtn').addEventListener('click', cargarVocesPublico);
-document.getElementById('exportVoicesBtn').addEventListener('click', descargarCSVVoces);
-
-document.getElementById('openAboutBtn').addEventListener('click', () => {
-  aboutModal.removeAttribute('hidden');
-});
-document.getElementById('closeAboutBtn').addEventListener('click', () => {
-  aboutModal.setAttribute('hidden', '');
-});
-
-document.getElementById('closeCuratorBtn').addEventListener('click', () => {
-  curatorModal.setAttribute('hidden', '');
-});
-
-document.getElementById('saveCuratorBtn').addEventListener('click', async () => {
+document.getElementById('saveCuratorBtn').addEventListener('click', () => {
   promptActual = promptInput.value;
-  try {
-    const res = await fetch('/api/update-instruction', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instruction: promptActual })
-    });
-    if (res.ok) {
-      alert("Los ajustes y la voz del río se han guardado permanentemente en el servidor.");
-    } else {
-      alert("Se guardaron los ajustes localmente.");
-    }
-  } catch (e) {
-    alert("Ajustes guardados localmente.");
-  }
   curatorModal.setAttribute('hidden', '');
+  alert("Los ajustes de la voz del río se han guardado.");
 });
 
-composer.addEventListener('submit', (e) => {
-  e.preventDefault();
-  enviar(field.value);
-});
+document.getElementById('openAboutBtn').addEventListener('click', () => aboutModal.removeAttribute('hidden'));
+document.getElementById('closeAboutBtn').addEventListener('click', () => aboutModal.setAttribute('hidden', ''));
+document.getElementById('closeCuratorBtn').addEventListener('click', () => curatorModal.setAttribute('hidden', ''));
 
-document.querySelectorAll('.cell').forEach(c => {
-  c.addEventListener('click', () => {
-    entrar(c.dataset.mode);
-  });
-});
-
-document.getElementById('back').addEventListener('click', () => { 
-  chat.style.display = 'none'; 
-  chat.setAttribute('hidden', '');
-  home.removeAttribute('hidden');
-  home.style.display = 'flex'; 
-});
+composer.addEventListener('submit', (e) => { e.preventDefault(); enviar(field.value); });
+document.querySelectorAll('.cell').forEach(c => c.addEventListener('click', () => entrar(c.dataset.mode)));
+document.getElementById('back').addEventListener('click', () => { chat.style.display = 'none'; chat.setAttribute('hidden', ''); home.removeAttribute('hidden'); home.style.display = 'flex'; });
 </script>
 </body>
 </html>
