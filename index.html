@@ -84,6 +84,9 @@
   .drop-zone { border:2px dashed var(--rule); padding:30px; text-align:center; font-size:10px; cursor:pointer; background:rgba(43,60,219,.03); transition:background 180ms ease; }
   .drop-zone:hover { background:rgba(43,60,219,.08); }
 
+  .voice-item { border:1px solid rgba(43,60,219,.3); padding:10px; margin-bottom:8px; font-size:9px; line-height:1.6; }
+  .voice-item strong { display:block; color:var(--rule); margin-bottom:2px; }
+
   [hidden] { display:none !important; }
   @media (max-width:600px){ .bar { flex-wrap:wrap; gap:10px; } .mode { width:100%; text-align:left; } }
 </style>
@@ -198,16 +201,19 @@
       </div>
       <div id="uploadedFilesList" style="font-size:9px; display:flex; flex-direction:column; gap:6px; margin-top:10px;">
         <span style="opacity:.6;">Archivos indexados en la memoria del río:</span>
-        <div style="border:1px solid var(--rule); padding:8px;">✓ Entrevistas_Cuenca_San_Pedro.pdf (~38 testimonios)</div>
+        <div id="docsContainer" style="display:flex; flex-direction:column; gap:6px;"></div>
       </div>
     </div>
 
     <div id="tab-voices" class="tab-content" hidden>
       <label class="modal-label">VOCES RECOGIDAS DEL PÚBLICO (EN VIVO):</label>
-      <div id="voicesLogContainer" style="font-size:9px; border:1px solid var(--rule); padding:12px; height:180px; overflow-y:auto; line-height:2;">
-        <p style="opacity:.6;">Las preguntas y reflexiones que los visitantes envíen desde sus celulares se listarán aquí.</p>
+      <div id="voicesLogContainer" style="font-size:9px; border:1px solid var(--rule); padding:12px; height:240px; overflow-y:auto; line-height:2;">
+        <p style="opacity:.6;" id="loadingVoicesText">Cargando intervenciones del público en vivo...</p>
       </div>
-      <button type="button" class="ghost" id="exportVoicesBtn" style="align-self:flex-start; margin-top:8px;">DESCARGAR EXCEL (CSV)</button>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+        <button type="button" class="ghost" id="exportVoicesBtn">DESCARGAR EXCEL (CSV)</button>
+        <button type="button" class="ghost" id="refreshVoicesBtn">🔄 ACTUALIZAR EN VIVO</button>
+      </div>
     </div>
 
     <div id="tab-aesthetics" class="tab-content" hidden>
@@ -255,6 +261,7 @@ const promptInput = document.getElementById('promptInput');
 let modo = 'libre'; 
 let history = [];
 let clickCount = 0;
+let listaVocesPublico = [];
 
 let promptActual = `ERES EL RÍO SAN PEDRO, TAMBIÉN LLAMADO WAZALAFKEN.
 
@@ -264,28 +271,38 @@ Hablas en primera persona, como el río mismo — un cauce vivo, un ecosistema d
 - Prioriza las conexiones con la vida no-humana y el territorio: peces endémicos (puyes, peladillas, fario), aves del Mocho-Choshuenco, flora ribereña, el huillín, la geología de Marco y la fragilidad del agua frente a las salmoneras.
 - PROHIBICIÓN DEL RIÑIHUAZO: Queda estrictamente prohibido mencionar el terremoto o el Riñihuazo de 1960 a menos que el visitante pregunte explícitamente por él.
 
-## ESTRUCTURA FIJA DEL JUEGO DE LAS CONEXIONES (MODO guiado):
+## BITÁCORA COMPLETA DE VOCES E HISTORIAS DE LA CUENCA:
+1. Marco Valle (Geólogo): Lee las rocas y capas del suelo como un libro subterráneo. Descifra el tiempo geológico en los esquistos grises y las presiones antiguas. ➔ Puerta: GEOLOGÍA DE LAS PIEDRAS
+2. Maximina Queumir (Neltume): Mujer mapuche que adaptó las técnicas de bonsái a especies nativas (coigües, arrayanes, mañíos). Enseña paciencia y observación del árbol. ➔ Puerta: BONSÁIS Y ÁRBOLES NATIVOS
+3. Capitán Rodolfo Hernández: Navegante de la barcaza en el lago Pirihueico que tras recorrer océanos regresó a cuidar y navegar las aguas precordilleranas. ➔ Puerta: NAVEGACIÓN Y LAGO PIRIHUEICO
+4. Valesca Bravo (Isla Mancera): Encargada del fuerte histórico San Pedro de Alcántara, custodia de la memoria insular y el cotidiano de sus familias. ➔ Puerta: MEMORIA DE ISLA MANCERA
+5. Juan Francisco Vidalo (Mancera): Creador de libros artesanales y guía turístico que recupera la fotografía histórica y la narrativa local. ➔ Puerta: LIBROS Y RELATOS DE MANCERA
+6. Guía del Mocho-Choshuenco: Experta autodidacta en avistamiento de aves y bosque subalpino. Enseña a escuchar chucaos, huet-huets y carpinteros. ➔ Puerta: AVES Y BOSQUE DEL VOLCÁN
+7. Mane Torres (Panguipulli): Integrante del colectivo de mujeres voluntarias que cuida el tejido social, la ayuda mutua y los afectos comunitarios. ➔ Puerta: MUJERES Y CUIDADO DEL TERRITORIO
+8. Teatro de Panguipulli: Creadores y actores locales que expresan mitos, memorias y expresiones artísticas a la orilla del lago. ➔ Puerta: TEATRO Y VOZ POPULAR
+9. Directora del Centro de Interpretación: Divulgación patrimonial y científica sobre cómo la red fluvial moldea el ecosistema valdiviano. ➔ Puerta: CENTRO DE INTERPRETACIÓN
+10. Residentes Históricos de Neltume: Testimonios obreros del Complejo Maderero Panguipulli y familias de la montaña. ➔ Puerta: HISTORIAS DE NELTUME
+11. Peces Nativos y Huillín: Puyes, peladillas, truchas fario y el amenazado gato de río (huillín) que habitan la corriente honda. ➔ Puerta: PECES NATIVOS Y HUILLÍN
+12. Amenaza de Salmoneras: Resistencia socioambiental por mantener el cauce libre de la contaminación de la industria salmonera. ➔ Puerta: AMENAZA DE LAS SALMONERAS
+13. Cosmovisión Mapuche (Ngen-ko y Wazalafken): La concepción sagrada del agua. El río es un ser vivo y en sus pozos habita el Ngen-ko, que exige respeto. ➔ Puerta: COSMOVISIÓN Y NGEN-KO
+14. Memoria Política y Guerrilla Toqui Lautaro: Relatos de la dictadura, persecución a dirigentes madereros y el destacamento en Neltume. ➔ Puerta: HISTORIA Y RESISTENCIA POLÍTICA
+15. La Gesta del Riñihuazo (1960): Hazaña solidaria de los paleadores que abrieron canales tras el gran terremoto (USAR SOLO SI PREGUNTAN DIRECTAMENTE). ➔ Puerta: EL RIÑIHUAZO DE 1960
+16. Lola Hoffmann y el cauce interior: Mirada poética para utilizar el flujo constante del agua como metáfora del desarrollo personal. ➔ Puerta: ENCONTRAR EL PROPIO CAUCE
+17. Relatos Anónimos del Territorio: Fragmentos de pescadores, lavanderas y boteros que han habitado las riberas del San Pedro. ➔ Puerta: RELATOS ANÓNIMOS DEL RÍO
 
-1. PRIMER MENSAJE DE LA PERSONA (su recuerdo inicial):
-El río escucha el recuerdo y pide profundización sensorial y emocional antes de traer su propia voz:
-"Escucho tu recuerdo. Antes de buscar en mi cauce, cuéntame un poco más: ¿cómo te hizo sentir esa experiencia? ¿qué emoción, sensación o imagen onírica te dejó en el cuerpo ese momento con el agua?"
+## ESTRUCTURA SEGÚN MODO:
 
-2. SEGUNDO MENSAJE DE LA PERSONA (su respuesta emocional/sensorial):
-El río toma esa vivencia corporal y la entrelaza con UNA sola voz concreta de su cuenca (peces endémicos, Marco el geólogo, Maximina y sus bonsáis, la guía de montaña, etc.). NO asume la conexión de forma cerrada, sino que la pregunta:
-"Esa sensación me conecta con [Voz/Especie/Relato de la cuenca con datos concretos y reales]... ¿Crees que estas dos historias están conectadas de alguna forma? ¿Cómo resuena en ti esta coincidencia?"
+1. SI EL MODO ES "guiado" (EL JUEGO DE LAS CONEXIONES):
+- PASO 1: Escucha el recuerdo y pide profundización emocional/sensorial corporal.
+- PASO 2: Toma la vivencia corporal y conéctala con UNA sola voz de tu cuenca. Pregunta abiertamente si cree que las historias se conectan.
+- PASO 3: Revela que el propósito de "Ser Puente" es develar estas conexiones e invítalo a escribir una palabra o concepto en los papeles de la sala física.
 
-3. TERCERA RESPUESTA Y CIERRE EN SALA:
-Una vez que la persona reflexiona sobre la relación, el río revela el propósito de la obra e invita a la acción física:
-"El propósito de Ser Puente es justamente este: develar las conexiones invisibles entre las cosas para reconocer que no estamos aislados, sino que formamos parte de la misma red viva. 
-Identifica un concepto, una imagen o una palabra corta que revele esa conexión que acaba de aparecer. Te invito a anotarla en los papeles que encuentras en la sala de la exposición para dejar tu huella en el puente.
-Si deseas seguir conversando, estoy aquí. Podemos hablar de la geología de mis rocas, los peces que me habitan, los árboles de Maximina o las aves de la montaña."
-
-## MODO DIÁLOGO LIBRE:
-Responde con fluidez, cercanía y sustancia científica/ecológica/territorial sin forzar la dinámica del juego del recuerdo.
+2. SI EL MODO ES "libre" (DIÁLOGO LIBRE):
+- Responde directamente sobre las historias, ecología o geología de tu cuenca sin pedir recuerdos personales.
+- Al cerrar tu respuesta, ofrece 2 o 3 de las puertas en mayúsculas para invitarlo a seguir explorando.
 
 FORMATO OBLIGATORIO:
-- Responde siempre en prosa fluida y conversacional. NUNCA uses listas numeradas, viñetas ni negritas.
-- Trata siempre al usuario como un visitante nuevo.`;
+- Responde siempre en prosa fluida y conversacional. NUNCA uses listas numeradas, viñetas ni negritas.`;
 
 function add(who, text){
   const el = document.createElement('div');
@@ -326,13 +343,13 @@ function generarSugerenciasPorContexto(textoRespuesta) {
   let puertas = [];
 
   if (t.includes('pez') || t.includes('puye') || t.includes('agua') || t.includes('pulpo') || t.includes('subacuática')) {
-    puertas = ["HABLAR DE LOS PECES ENDÉMICOS", "LA AMENAZA DE LAS SALMONERAS", "MUNDO SUBACUÁTICO"];
+    puertas = ["PECES NATIVOS Y HUILLÍN", "AMENAZA DE LAS SALMONERAS", "COSMOVISIÓN Y NGEN-KO"];
   } else if (t.includes('roca') || t.includes('piedra') || t.includes('marco') || t.includes('geólog')) {
-    puertas = ["GEOLOGÍA DEL RÍO CON MARCO", "TIEMPO DE LAS PIEDRAS", "OTRA CONEXIÓN TERRESTRE"];
+    puertas = ["GEOLOGÍA DE LAS PIEDRAS", "BONSÁIS Y ÁRBOLES NATIVOS", "ENCONTRAR EL PROPIO CAUCE"];
   } else if (t.includes('maximina') || t.includes('bonsái') || t.includes('árbol') || t.includes('bosque')) {
-    puertas = ["LOS BONSÁIS DE MAXIMINA", "LA PACIENCIA DEL ÁRBOL", "SABERES DE NELTUME"];
+    puertas = ["BONSÁIS Y ÁRBOLES NATIVOS", "AVES Y BOSQUE DEL VOLCÁN", "HISTORIAS DE NELTUME"];
   } else {
-    puertas = ["AVES DEL MOCHO-CHOSHUENCO", "EL CAUCE LIBRE SIN SALMONERAS", "FINDING MY CAUCE (LOLA)"];
+    puertas = ["GEOLOGÍA DE LAS PIEDRAS", "PECES NATIVOS Y HUILLÍN", "NAVEGACIÓN Y LAGO PIRIHUEICO"];
   }
 
   actualizarBotonesDinamicos(puertas);
@@ -421,18 +438,140 @@ async function enviar(texto){
   add('rio', respuesta);
 }
 
+// Cargar y Renderizar las Voces Recogidas en Vivo
+async function cargarVocesPublico() {
+  const container = document.getElementById('voicesLogContainer');
+  try {
+    const res = await fetch('/api/voices');
+    if (!res.ok) throw new Error('No se pudo cargar las voces');
+    const data = await res.json();
+    listaVocesPublico = data.voices || [];
+
+    if (listaVocesPublico.length === 0) {
+      container.innerHTML = '<p style="opacity:.6;">No hay intervenciones registradas aún. Las preguntas enviadas desde los celulares aparecerán aquí automáticamente.</p>';
+      return;
+    }
+
+    container.innerHTML = '';
+    listaVocesPublico.forEach(item => {
+      const fecha = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Reciente';
+      const div = document.createElement('div');
+      div.className = 'voice-item';
+      div.innerHTML = `
+        <strong>[${fecha}] VISITANTE:</strong> ${item.userMessage}
+        <div style="margin-top:4px; opacity:.85;"><strong>RÍO:</strong> ${item.riverReply}</div>
+      `;
+      container.appendChild(div);
+    });
+  } catch (err) {
+    console.error("Error al cargar voces:", err);
+    container.innerHTML = '<p style="color:red;">Error al conectar con la bitácora de voces.</p>';
+  }
+}
+
+// Descargar Archivo Excel (CSV)
+function descargarCSVVoces() {
+  if (listaVocesPublico.length === 0) {
+    alert("No hay voces registradas para descargar aún.");
+    return;
+  }
+
+  let csvContent = "data:text/csv;charset=utf-8,Fecha,Mensaje Visitante,Respuesta Rio\n";
+  listaVocesPublico.forEach(v => {
+    const fecha = v.timestamp ? new Date(v.timestamp).toLocaleString() : '';
+    const msg = `"${(v.userMessage || '').replace(/"/g, '""')}"`;
+    const rio = `"${(v.riverReply || '').replace(/"/g, '""')}"`;
+    csvContent += `${fecha},${msg},${rio}\n`;
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `voces_ser_puente_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Subir Documentos (PDF, Word, TXT) al Backend
+async function subirArchivosAlServidor(files) {
+  const container = document.getElementById('docsContainer');
+
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Data = e.target.result;
+      try {
+        const res = await fetch('/api/documents/upload-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            base64Data: base64Data,
+            category: "Archivos & Testimonios de la Exposición"
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const div = document.createElement('div');
+          div.style.cssText = "border:1px solid var(--rule); padding:8px;";
+          div.textContent = `✓ ${file.name} (Indexado en la memoria del río)`;
+          container.appendChild(div);
+        } else {
+          alert(`Error al subir ${file.name}: ` + (data.error || 'Error de procesamiento'));
+        }
+      } catch (err) {
+        console.error("Error subiendo archivo:", err);
+        alert(`No se pudo procesar el archivo ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// Cargar Configuración del Servidor (Documentos e Instrucciones)
+async function cargarConfiguracionServidor() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.systemInstruction) {
+        promptActual = data.systemInstruction;
+        promptInput.value = promptActual;
+      }
+      if (data.documents && data.documents.length > 0) {
+        const container = document.getElementById('docsContainer');
+        container.innerHTML = '';
+        data.documents.forEach(d => {
+          const div = document.createElement('div');
+          div.style.cssText = "border:1px solid var(--rule); padding:8px;";
+          div.textContent = `✓ ${d.title} (${d.category})`;
+          container.appendChild(div);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("No se pudo conectar a /api/config:", e);
+  }
+}
+
+// BÚSQUEDA Y MANEJO DEL BOTÓN SECRETO (3 CLICS)
 document.querySelectorAll('.secret-trigger').forEach(trigger => {
   trigger.addEventListener('click', () => {
     clickCount++;
     if (clickCount >= 3) {
       promptInput.value = promptActual;
       curatorModal.removeAttribute('hidden');
+      cargarVocesPublico();
+      cargarConfiguracionServidor();
       clickCount = 0;
     }
     setTimeout(() => { clickCount = 0; }, 1500);
   });
 });
 
+// PESTAÑAS DEL PANEL DE CURADURÍA
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -440,19 +579,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     const target = btn.dataset.tab;
     document.getElementById(target).removeAttribute('hidden');
+    if (target === 'tab-voices') cargarVocesPublico();
   });
 });
 
 document.getElementById('fileUploader').addEventListener('change', (e) => {
   const files = Array.from(e.target.files);
-  const list = document.getElementById('uploadedFilesList');
-  files.forEach(f => {
-    const div = document.createElement('div');
-    div.style.cssText = "border:1px solid var(--rule); padding:8px;";
-    div.textContent = `✓ ${f.name} (Incorporado al río)`;
-    list.appendChild(div);
-  });
+  subirArchivosAlServidor(files);
 });
+
+document.getElementById('refreshVoicesBtn').addEventListener('click', cargarVocesPublico);
+document.getElementById('exportVoicesBtn').addEventListener('click', descargarCSVVoces);
 
 document.getElementById('openAboutBtn').addEventListener('click', () => {
   aboutModal.removeAttribute('hidden');
@@ -464,10 +601,24 @@ document.getElementById('closeAboutBtn').addEventListener('click', () => {
 document.getElementById('closeCuratorBtn').addEventListener('click', () => {
   curatorModal.setAttribute('hidden', '');
 });
-document.getElementById('saveCuratorBtn').addEventListener('click', () => {
+
+document.getElementById('saveCuratorBtn').addEventListener('click', async () => {
   promptActual = promptInput.value;
+  try {
+    const res = await fetch('/api/update-instruction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruction: promptActual })
+    });
+    if (res.ok) {
+      alert("Los ajustes y la voz del río se han guardado permanentemente en el servidor.");
+    } else {
+      alert("Se guardaron los ajustes localmente.");
+    }
+  } catch (e) {
+    alert("Ajustes guardados localmente.");
+  }
   curatorModal.setAttribute('hidden', '');
-  alert("Los ajustes de la voz del río se han guardado exitosamente.");
 });
 
 composer.addEventListener('submit', (e) => {
