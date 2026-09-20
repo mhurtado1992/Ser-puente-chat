@@ -24,7 +24,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-markdown": "^10.1.0",
-    "vite": "^6.2.3",
     "word-extractor": "^1.0.4"
   },
   "devDependencies": {

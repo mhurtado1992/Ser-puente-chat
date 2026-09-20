@@ -16,6 +16,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [config, setConfig] = useState<ExhibitionConfig | null>(null);
   const [isCuratorOpen, setIsCuratorOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [secretClicks, setSecretClicks] = useState(0);
 
 const handleSecretClick = () => {

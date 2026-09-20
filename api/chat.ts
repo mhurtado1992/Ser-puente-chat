@@ -126,9 +126,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
-    res.status(200).json({
-      reply: getRiverVoiceReply(userText),
-      retrievalMode: "curated_voice"
+    res.status(500).json({
+      error: "La variable de entorno GEMINI_API_KEY no está configurada en Vercel.",
+      reply: "[Error de configuración]: GEMINI_API_KEY no encontrada en las variables de entorno de Vercel. Por favor agrégala en la configuración del proyecto."
     });
     return;
   }
@@ -142,10 +142,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
     if (Array.isArray(history)) {
       for (const item of history.slice(-6)) {
-        if (item?.text) {
+        if (item?.text || (item?.parts && item.parts[0]?.text)) {
+          const t = item.text || item.parts[0].text;
           contents.push({
-            role: item.role === "user" ? "user" : "model",
-            parts: [{ text: item.text }]
+            role: item.role === "user" || item.role === "yo" ? "user" : "model",
+            parts: [{ text: t }]
           });
         }
       }
@@ -155,38 +156,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       parts: [{ text: userText || "Hola río" }]
     });
 
-    const models = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3-flash-preview"];
-    let finalReply = "";
+    // Llamada oficial a gemini-3.6-flash con fallbacks compatibles
+    const candidateModels = [
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-flash-latest",
+      "gemini-2.5-flash",
+    ];
+    let reply = "";
+    let lastError: any = null;
 
-    for (const m of models) {
+    for (const modelName of candidateModels) {
       try {
         const resp = await ai.models.generateContent({
-          model: m,
+          model: modelName,
           contents,
           config: {
             systemInstruction: prompt,
-            temperature: 0.75,
-            maxOutputTokens: 800
+            temperature: 0.7,
+            maxOutputTokens: 1000
           }
         });
         if (resp.text) {
-          finalReply = resp.text;
+          reply = resp.text;
           break;
         }
-      } catch {
-        // try next model
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Intento con ${modelName} en chat.ts falló: ${err?.message || err}`);
       }
     }
 
+    if (!reply) {
+      throw new Error(lastError?.message || "El modelo Gemini no devolvió texto en la respuesta.");
+    }
+
     res.status(200).json({
-      reply: finalReply || getRiverVoiceReply(userText),
+      reply,
       retrievalMode: "smart_rag"
     });
-  } catch (err) {
-    console.error("Error en función de chat:", err);
-    res.status(200).json({
-      reply: getRiverVoiceReply(userText),
-      retrievalMode: "resilient_fallback"
+  } catch (err: any) {
+    console.error("Error en función de chat con Gemini:", err);
+    const errorMsg = err?.message || String(err);
+    res.status(500).json({
+      error: errorMsg,
+      reply: `[Error del servidor]: ${errorMsg}`
     });
   }
 }
