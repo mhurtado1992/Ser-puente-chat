@@ -94,7 +94,6 @@
         </div>
       </div>
 
-      <!-- Ruta corregida a la carpeta public -->
       <img id="rio" class="hero" src="/rio.jpg" alt="El río San Pedro">
 
       <div id="voces" class="cells">
@@ -131,7 +130,7 @@
 
     <form class="composer" id="composer">
       <input id="field" type="text" placeholder="HABLA CON EL RÍO SAN PEDRO…" aria-label="Habla con el río San Pedro">
-      <button type="button" id="sendBtn">ENVIAR</button>
+      <button type="submit" id="sendBtn">ENVIAR</button>
     </form>
   </div>
   <div style="height:clamp(0px,3vw,46px);"></div>
@@ -148,7 +147,6 @@
 <script type="module">
 import { GoogleGenAI } from '@google/genai';
 
-// Inicializa el cliente de Gemini (usa automáticamente la API Key configurada en AI Studio)
 const ai = new GoogleGenAI();
 
 const SUGERENCIAS = {
@@ -163,7 +161,6 @@ const SUGERENCIAS = {
 const home = document.getElementById('home'), chat = document.getElementById('chat');
 const thread = document.getElementById('thread'), suggest = document.getElementById('suggest');
 const field = document.getElementById('field'); 
-const sendBtn = document.getElementById('sendBtn');
 const composer = document.getElementById('composer');
 
 let modo = 'libre'; 
@@ -224,7 +221,6 @@ async function consultarGemini(mensajeUsuario) {
   try {
     const systemInstruction = "Eres las voces del río San Pedro (Wazalafken) en la obra 'Ser Puente'. Responde a los visitantes como si fueras el río en sí mismo. Mantén un tono poético, evocador, conciso y profundo (máximo 2 párrafos cortos). Habla sobre la memoria del agua, el Riñihuazo, la conexión entre la naturaleza y las comunidades, y el flujo libre de tus aguas.";
     
-    // Llamada con Gemini 2.5 Flash
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
@@ -239,7 +235,6 @@ async function consultarGemini(mensajeUsuario) {
 
     const respuestaTexto = response.text || "Las aguas murmuran en silencio... intenta preguntarme nuevamente.";
     
-    // Guardar en el historial de conversación
     history.push({ role: 'user', parts: [{ text: mensajeUsuario }] });
     history.push({ role: 'model', parts: [{ text: respuestaTexto }] });
 
@@ -255,7 +250,7 @@ async function enviar(texto){
   const t = (texto || field.value || '').trim(); 
   if (!t) return;
   
-  if (!home.hidden) { 
+  if (home.hidden === false) { 
     entrar('libre', t); 
     return; 
   }
@@ -264,26 +259,31 @@ async function enviar(texto){
   field.value = ''; 
   typing(true);
 
-  // Consulta en tiempo real a la API
   const respuesta = await consultarGemini(t);
   
   typing(false);
   add('rio', respuesta);
 }
 
-// Controlar eventos para evitar la recarga por defecto de la página
+// Hacer globales las funciones para que los botones las encuentren
+window.entrar = entrar;
+window.enviar = enviar;
+
 composer.addEventListener('submit', (e) => {
   e.preventDefault();
-  enviar();
+  enviar(field.value);
 });
 
-sendBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  enviar();
+document.querySelectorAll('.cell').forEach(c => {
+  c.addEventListener('click', () => {
+    entrar(c.dataset.mode);
+  });
 });
 
-document.querySelectorAll('.cell').forEach(c => c.onclick = () => entrar(c.dataset.mode));
-document.getElementById('back').onclick = () => { chat.hidden = true; home.hidden = false; };
+document.getElementById('back').addEventListener('click', () => { 
+  chat.hidden = true; 
+  home.hidden = false; 
+});
 </script>
 </body>
 </html>
